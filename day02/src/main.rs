@@ -14,33 +14,40 @@ fn main() -> Result<()> {
         .read_to_string(&mut input)
         .expect("Failed to read input file");
 
-    let mut memory = input
+    let memory = input
         .split(",")
         .map(|x| x.parse::<usize>().unwrap())
         .collect::<Vec<_>>();
-    println!("Values: {:?}", memory);
+    //println!("Values: {:?}", memory);
 
-    execute_program(&mut memory, 12, 2);
-    println!("Result: {}", memory[0]);
+    for a in 1..100 {
+        for b in 1..100 {
+            let result = execute_program(&memory, a, b);
+            if result == 19690720 {
+                println!("Found it! a = {}, b = {}", a, b);
+                break;
+            }
+        }
+    }
 
     Ok(())
 }
 
-fn execute_program(memory: &mut Vec<usize>, arg1: usize, arg2: usize) -> usize {
+fn execute_program(memory: &Vec<usize>, arg1: usize, arg2: usize) -> usize {
     let mut ip: usize = 0; // Instruction pointer
-
+    let mut memory = memory.clone();
     // Enter parameters
     memory[1] = arg1;
     memory[2] = arg2;
 
     loop {
-        match read_op_code(memory, &mut ip) {
-            OpCode::Add => execute_instruction(memory, &mut ip, |a, b| a + b),
-            OpCode::Mult => execute_instruction(memory, &mut ip, |a, b| a * b),
+        match read_op_code(&mut memory, &mut ip) {
+            OpCode::Add => execute_instruction(&mut memory, &mut ip, |a, b| a + b),
+            OpCode::Mult => execute_instruction(&mut memory, &mut ip, |a, b| a * b),
             OpCode::Exit => break,
         }
 
-        println!("Values: {:?}", memory);
+        //println!("Values: {:?}", memory);
     }
 
     memory[0]
