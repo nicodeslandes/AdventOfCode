@@ -1,15 +1,16 @@
+use std::env;
 use std::fs::File;
 use std::io::Read;
-use std::{env, io};
 
-fn main() {
+type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
+
+fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
 
     println!("Reading input from {}", file_name);
 
     let mut input = String::new();
-    File::open(file_name)
-        .unwrap()
+    File::open(file_name)?
         .read_to_string(&mut input)
         .expect("Failed to read input file");
 
@@ -27,6 +28,7 @@ fn main() {
     }
 
     println!("Result: {}", sum);
+    Ok(())
 }
 
 fn calculate_fuel(mass: i32) -> i32 {
