@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -27,17 +27,23 @@ fn main() -> Result<()> {
     //println!("Line1 pos: {:?}", line1_pos);
     //println!("Line2 pos: {:?}", line2_pos);
 
-    let closest_intersection = line1_pos
-        .intersection(&line2_pos)
-        .min_by_key(|pos| distance_to_origin(**pos));
+    let line1_positions: HashSet<(i32, i32)> = line1_pos.keys().map(|x| *x).collect();
+    let line2_positions: HashSet<(i32, i32)> = line2_pos.keys().map(|x| *x).collect();
+
+    let closest_intersection = line1_positions
+        .intersection(&line2_positions)
+        .min_by_key(|pos| line1_pos[*pos] + line2_pos[*pos]);
 
     match closest_intersection {
-        Some((x, y)) => println!(
-            "Closest intersection: {},{}; distance: {}",
-            x,
-            y,
-            distance_to_origin((*x, *y))
-        ),
+        Some((x, y)) => {
+            let pos = (*x, *y);
+            println!(
+                "Closest intersection: {},{}; distance: {}",
+                pos.0,
+                pos.1,
+                line1_pos[&pos] + line2_pos[&pos]
+            )
+        }
         _ => println!("No intersection found!"),
     }
 
@@ -47,9 +53,11 @@ fn main() -> Result<()> {
 fn distance_to_origin(pos: (i32, i32)) -> i32 {
     pos.0.abs() + pos.1.abs()
 }
-fn read_line_positions<'a>(moves: Vec<&'a str>) -> HashSet<(i32, i32)> {
-    let mut positions = HashSet::new();
+fn read_line_positions<'a>(moves: Vec<&'a str>) -> HashMap<(i32, i32), i32> {
+    let mut positions = HashMap::new();
     let mut current_pos: (i32, i32) = (0, 0);
+    let mut current_length = 0;
+
     for mov in moves {
         let mut chars = mov.chars();
         let direction = chars.next().expect("Empty move");
@@ -62,19 +70,29 @@ fn read_line_positions<'a>(moves: Vec<&'a str>) -> HashSet<(i32, i32)> {
             _ => panic!("Unexpected direction"),
         };
 
-        add_positions(&mut positions, &mut current_pos, movement_length, movement);
+        add_positions(
+            &mut positions,
+            &mut current_pos,
+            &mut current_length,
+            movement_length,
+            movement,
+        );
     }
     positions
 }
 
 fn add_positions(
-    positions: &mut HashSet<(i32, i32)>,
+    positions: &mut HashMap<(i32, i32), i32>,
     current_pos: &mut (i32, i32),
+    current_length: &mut i32,
     length: i32,
     movement: fn((i32, i32)) -> (i32, i32),
 ) {
     for _ in 0..length {
         *current_pos = movement(*current_pos);
-        positions.insert(*current_pos);
+        *current_length += 1;
+        if !positions.contains_key(current_pos) {
+            positions.insert(*current_pos, *current_length);
+        }
     }
 }
