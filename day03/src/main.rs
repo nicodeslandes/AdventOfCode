@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::env;
 use std::fs::File;
@@ -19,27 +18,35 @@ fn main() -> Result<()> {
     reader.read_line(&mut line1)?;
     reader.read_line(&mut line2)?;
 
-    println!("Line1: {}", line1);
-    println!("Line2: {}", line2);
+    //println!("Line1: {}", line1);
+    //println!("Line2: {}", line2);
 
     let line1_pos = read_line_positions(line1.trim_end().split(",").collect());
     let line2_pos = read_line_positions(line2.trim_end().split(",").collect());
 
-    println!("Line1 pos: {:?}", line1_pos);
-    println!("Line2 pos: {:?}", line2_pos);
+    //println!("Line1 pos: {:?}", line1_pos);
+    //println!("Line2 pos: {:?}", line2_pos);
 
     let closest_intersection = line1_pos
         .intersection(&line2_pos)
-        .min_by(|(x1, y1), (x2, y2)| x1.cmp(x2));
+        .min_by_key(|pos| distance_to_origin(**pos));
 
     match closest_intersection {
-        Some((x, y)) => println!("Result: {},{}", x, y),
+        Some((x, y)) => println!(
+            "Closest intersection: {},{}; distance: {}",
+            x,
+            y,
+            distance_to_origin((*x, *y))
+        ),
         _ => println!("No intersection found!"),
     }
 
     Ok(())
 }
 
+fn distance_to_origin(pos: (i32, i32)) -> i32 {
+    pos.0.abs() + pos.1.abs()
+}
 fn read_line_positions<'a>(moves: Vec<&'a str>) -> HashSet<(i32, i32)> {
     let mut positions = HashSet::new();
     let mut current_pos: (i32, i32) = (0, 0);
@@ -47,16 +54,27 @@ fn read_line_positions<'a>(moves: Vec<&'a str>) -> HashSet<(i32, i32)> {
         let mut chars = mov.chars();
         let direction = chars.next().expect("Empty move");
         let movement_length: i32 = chars.as_str().parse().expect("Failed to parse move");
-        match direction {
-            'U' => current_pos.1 += movement_length,
-            'D' => current_pos.1 -= movement_length,
-            'R' => current_pos.0 += movement_length,
-            'L' => current_pos.0 -= movement_length,
+        let movement: fn((i32, i32)) -> (i32, i32) = match direction {
+            'U' => |(x, y)| (x, y + 1),
+            'D' => |(x, y)| (x, y - 1),
+            'R' => |(x, y)| (x + 1, y),
+            'L' => |(x, y)| (x - 1, y),
             _ => panic!("Unexpected direction"),
         };
 
-        positions.insert(current_pos);
-        println!("pos: {:?}", positions);
+        add_positions(&mut positions, &mut current_pos, movement_length, movement);
     }
     positions
+}
+
+fn add_positions(
+    positions: &mut HashSet<(i32, i32)>,
+    current_pos: &mut (i32, i32),
+    length: i32,
+    movement: fn((i32, i32)) -> (i32, i32),
+) {
+    for _ in 0..length {
+        *current_pos = movement(*current_pos);
+        positions.insert(*current_pos);
+    }
 }
