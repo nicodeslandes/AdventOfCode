@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -16,32 +17,36 @@ fn main() -> Result<()> {
 
     let memory = input
         .split(",")
-        .map(|x| x.parse::<usize>().unwrap())
+        .map(|x| Cell::new(x.parse::<i32>().unwrap()))
         .collect::<Vec<_>>();
     //println!("Values: {:?}", memory);
     let result = execute_program(&memory, 1, 1);
-
+    println!("result: {:?}", result);
     Ok(())
 }
 
-fn execute_program(memory: &Vec<usize>, arg1: usize, arg2: usize) -> usize {
+fn execute_program(memory: &Vec<Cell<i32>>, arg1: i32, arg2: i32) -> i32 {
     let mut ip: usize = 0; // Instruction pointer
     let mut memory = memory.clone();
     // Enter parameters
-    memory[1] = arg1;
-    memory[2] = arg2;
+    memory[1].set(arg1);
+    memory[2].set(arg2);
 
     loop {
         match read_op_code(&mut memory, &mut ip) {
-            OpCode::Add => execute_instruction(&mut memory, &mut ip, |a, b| a + b),
-            OpCode::Mult => execute_instruction(&mut memory, &mut ip, |a, b| a * b),
+            OpCode::Add => {
+                execute_instruction3(&mut memory, &mut ip, |a, b, c| c.set(a.get() + b.get()))
+            }
+            OpCode::Mult => {
+                execute_instruction3(&mut memory, &mut ip, |a, b, c| c.set(a.get() * b.get()))
+            }
             OpCode::Exit => break,
         }
 
         //println!("Values: {:?}", memory);
     }
 
-    memory[0]
+    memory[0].get()
 }
 
 enum OpCode {
@@ -50,8 +55,8 @@ enum OpCode {
     Exit,
 }
 
-fn read_op_code(memory: &mut Vec<usize>, ip: &mut usize) -> OpCode {
-    let op_code = match memory[*ip] {
+fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &mut usize) -> OpCode {
+    let op_code = match memory[*ip].get() {
         1 => OpCode::Add,
         2 => OpCode::Mult,
         99 => OpCode::Exit,
@@ -61,18 +66,36 @@ fn read_op_code(memory: &mut Vec<usize>, ip: &mut usize) -> OpCode {
     *ip += 1;
     op_code
 }
-fn execute_instruction(
+fn execute_instruction3(
+    memory: &mut Vec<Cell<i32>>,
+    ip: &mut usize,
+    operation: fn(&Cell<i32>, &Cell<i32>, &Cell<i32>) -> (),
+) -> () {
+    let x = get_parameter(&memory, ip);
+    let y = get_parameter(&memory, ip);
+    let z = get_parameter(&memory, ip);
+
+    operation(x, y, z);
+}
+
+fn get_parameter<'a>(memory: &'a Vec<Cell<i32>>, ip: &mut usize) -> &'a Cell<i32> {
+    let x_addr = memory[*ip].get() as usize;
+    *ip += 1;
+    &memory[x_addr]
+}
+
+fn execute_instruction1(
     memory: &mut Vec<usize>,
     ip: &mut usize,
-    operation: fn(usize, usize) -> usize,
+    operation: fn(usize) -> usize,
 ) -> () {
     let x = memory[memory[*ip]];
     *ip += 1;
 
-    let y = memory[memory[*ip]];
+    let _y = memory[memory[*ip]];
     *ip += 1;
 
     let index = memory[*ip];
-    memory[index] = operation(x, y);
+    memory[index] = operation(x);
     *ip += 1;
 }
