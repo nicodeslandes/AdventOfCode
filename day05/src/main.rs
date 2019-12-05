@@ -7,15 +7,18 @@ type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
+    let input: i32 = env::args()
+        .nth(2)
+        .expect("Missing input")
+        .parse()
+        .expect("Invalid input: enter a number");
 
-    println!("Reading input from {}", file_name);
-
-    let mut input = String::new();
+    let mut instructions = String::new();
     File::open(file_name)?
-        .read_to_string(&mut input)
+        .read_to_string(&mut instructions)
         .expect("Failed to read input file");
 
-    let memory = input
+    let memory = instructions
         .split(",")
         .map(|x| {
             Cell::new(
@@ -24,70 +27,63 @@ fn main() -> Result<()> {
             )
         })
         .collect::<Vec<_>>();
+
     //println!("Values: {:?}", memory);
-    let result = execute_program(&memory);
-    println!("result: {:?}", result);
+    execute_program(&memory, input);
     Ok(())
 }
 
-fn execute_program(memory: &Vec<Cell<i32>>) -> i32 {
-    let mut ip: usize = 0; // Instruction pointer
+fn execute_program(memory: &Vec<Cell<i32>>, input: i32) {
+    let ip: Cell<usize> = Cell::new(0); // Instruction pointer
     let mut memory = memory.clone();
 
     loop {
-        match read_op_code(&mut memory, &mut ip) {
-            (OpCode::Add, parameter_modes) => {
-                execute_instruction3(&mut memory, &mut ip, parameter_modes, |a, b, c| {
+        match read_op_code(&mut memory, &ip) {
+            (OpCode::Add, parameter_modes) => execute_instruction3(
+                &mut memory,
+                &ip,
+                parameter_modes,
+                |a: Parameter, b: Parameter, c: Parameter| {
                     c.set(a.get() + b.get());
-                    None
-                })
-            }
+                },
+            ),
             (OpCode::Mult, parameter_modes) => {
-                execute_instruction3(&mut memory, &mut ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&mut memory, &ip, parameter_modes, |a, b, c| {
                     c.set(a.get() * b.get());
-                    None
                 })
             }
             (OpCode::Input, parameter_modes) => {
-                execute_instruction1(&mut memory, &mut ip, parameter_modes, |a| {
-                    a.set(read_input());
-                    None
+                execute_instruction1(&mut memory, &ip, parameter_modes, |a| {
+                    a.set(input);
                 })
             }
             (OpCode::Output, parameter_modes) => {
-                execute_instruction1(&mut memory, &mut ip, parameter_modes, |a| {
+                execute_instruction1(&mut memory, &ip, parameter_modes, |a| {
                     write_output(a.get());
-                    None
                 })
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
-                execute_instruction2(&mut memory, &mut ip, parameter_modes, |a, b| {
+                execute_instruction2(&mut memory, &ip, parameter_modes, |a, b| {
                     if a.get() != 0 {
-                        Some(b.get() as usize)
-                    } else {
-                        None
+                        jump_to(&ip, b.get());
                     }
                 })
             }
             (OpCode::JumpIfFalse, parameter_modes) => {
-                execute_instruction2(&mut memory, &mut ip, parameter_modes, |a, b| {
+                execute_instruction2(&mut memory, &ip, parameter_modes, |a, b| {
                     if a.get() == 0 {
-                        Some(b.get() as usize)
-                    } else {
-                        None
+                        jump_to(&ip, b.get());
                     }
                 })
             }
             (OpCode::LessThan, parameter_modes) => {
-                execute_instruction3(&mut memory, &mut ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&mut memory, &ip, parameter_modes, |a, b, c| {
                     c.set(if a.get() < b.get() { 1 } else { 0 });
-                    None
                 })
             }
             (OpCode::Equals, parameter_modes) => {
-                execute_instruction3(&mut memory, &mut ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&mut memory, &ip, parameter_modes, |a, b, c| {
                     c.set(if a.get() == b.get() { 1 } else { 0 });
-                    None
                 })
             }
             (OpCode::Exit, _) => break,
@@ -95,8 +91,6 @@ fn execute_program(memory: &Vec<Cell<i32>>) -> i32 {
 
         //println!("Values: {:?}", memory);
     }
-
-    memory[0].get()
 }
 
 enum OpCode {
@@ -111,8 +105,12 @@ enum OpCode {
     Equals,
 }
 
-fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &mut usize) -> (OpCode, u32) {
-    let value = memory[*ip].get();
+fn jump_to(ip: &Cell<usize>, address: i32) {
+    ip.set(address as usize);
+}
+
+fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &Cell<usize>) -> (OpCode, u32) {
+    let value = memory[ip.get()].get();
     let op_code_value = value % 100;
     let parameter_modes = (value / 100) as u32;
 
@@ -129,47 +127,51 @@ fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &mut usize) -> (OpCode, u32) {
         x => panic!("Unknown op code: {}", x),
     };
 
-    *ip += 1;
+    ip.set(ip.get() + 1);
     (op_code, parameter_modes)
 }
 
 fn execute_instruction1(
     memory: &mut Vec<Cell<i32>>,
-    ip: &mut usize,
+    ip: &Cell<usize>,
     parameter_modes: u32,
-    operation: fn(Parameter) -> Option<usize>,
+    operation: impl Fn(Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, ip, &mut param_modes);
-    operation(x).map(|ptr| *ip = ptr);
+    let x = get_parameter(memory, &ip, &mut param_modes);
+    operation(x);
 }
 
 fn execute_instruction2(
     memory: &mut Vec<Cell<i32>>,
-    ip: &mut usize,
+    ip: &Cell<usize>,
     parameter_modes: u32,
-    operation: fn(Parameter, Parameter) -> Option<usize>,
+    operation: impl Fn(Parameter, Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, ip, &mut param_modes);
-    let y = get_parameter(memory, ip, &mut param_modes);
-    operation(x, y).map(|ptr| *ip = ptr);
+    let x = get_parameter(memory, &ip, &mut param_modes);
+    let y = get_parameter(memory, &ip, &mut param_modes);
+    operation(x, y);
 }
 
 fn execute_instruction3(
     memory: &mut Vec<Cell<i32>>,
-    ip: &mut usize,
+    ip: &Cell<usize>,
     parameter_modes: u32,
-    operation: fn(Parameter, Parameter, Parameter) -> Option<usize>,
+    operation: impl Fn(Parameter, Parameter, Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, ip, &mut param_modes);
-    let y = get_parameter(memory, ip, &mut param_modes);
-    let z = get_parameter(memory, ip, &mut param_modes);
-    operation(x, y, z).map(|ptr| *ip = ptr);
+    let x = get_parameter(memory, &ip, &mut param_modes);
+    let y = get_parameter(memory, &ip, &mut param_modes);
+    let z = get_parameter(memory, &ip, &mut param_modes);
+    operation(x, y, z);
 }
 
-fn get_parameter(memory: &Vec<Cell<i32>>, ip: &mut usize, parameter_modes: &mut u32) -> Parameter {
+fn get_parameter(
+    memory: &Vec<Cell<i32>>,
+    ip: &Cell<usize>,
+    parameter_modes: &mut u32,
+) -> Parameter {
     // Get the parameter mode for this parameter
     let parameter_mode = match *parameter_modes % 10 {
         0 => ParameterMode::Position,
@@ -178,8 +180,8 @@ fn get_parameter(memory: &Vec<Cell<i32>>, ip: &mut usize, parameter_modes: &mut 
     };
     *parameter_modes /= 10;
 
-    let parameter_value = memory[*ip].get();
-    *ip += 1;
+    let parameter_value = memory[ip.get()].get();
+    ip.set(ip.get() + 1);
     match parameter_mode {
         ParameterMode::Position => Parameter::CellReference(&memory[parameter_value as usize]),
         ParameterMode::Immediate => Parameter::ImmediateValue(parameter_value),
@@ -213,10 +215,6 @@ impl<'a> Parameter {
 enum ParameterMode {
     Position,
     Immediate,
-}
-
-fn read_input() -> i32 {
-    5
 }
 
 fn write_output(value: i32) {
