@@ -40,6 +40,8 @@ fn execute_program(memory: &Vec<Cell<i32>>, arg1: i32, arg2: i32) -> i32 {
             OpCode::Mult => {
                 execute_instruction3(&mut memory, &mut ip, |a, b, c| c.set(a.get() * b.get()))
             }
+            OpCode::Input => execute_instruction1(&mut memory, &mut ip, |a| a.set(read_input())),
+            OpCode::Output => execute_instruction1(&mut memory, &mut ip, |a| write_output(a.get())),
             OpCode::Exit => break,
         }
 
@@ -53,12 +55,16 @@ enum OpCode {
     Add,
     Mult,
     Exit,
+    Input,
+    Output,
 }
 
 fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &mut usize) -> OpCode {
     let op_code = match memory[*ip].get() {
         1 => OpCode::Add,
         2 => OpCode::Mult,
+        3 => OpCode::Input,
+        4 => OpCode::Output,
         99 => OpCode::Exit,
         x => panic!("Unknown op code: {}", x),
     };
@@ -66,6 +72,7 @@ fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &mut usize) -> OpCode {
     *ip += 1;
     op_code
 }
+
 fn execute_instruction3(
     memory: &mut Vec<Cell<i32>>,
     ip: &mut usize,
@@ -78,24 +85,25 @@ fn execute_instruction3(
     operation(x, y, z);
 }
 
+fn execute_instruction1(
+    memory: &mut Vec<Cell<i32>>,
+    ip: &mut usize,
+    operation: fn(&Cell<i32>) -> (),
+) -> () {
+    let x = get_parameter(&memory, ip);
+    operation(x);
+}
+
 fn get_parameter<'a>(memory: &'a Vec<Cell<i32>>, ip: &mut usize) -> &'a Cell<i32> {
     let x_addr = memory[*ip].get() as usize;
     *ip += 1;
     &memory[x_addr]
 }
 
-fn execute_instruction1(
-    memory: &mut Vec<usize>,
-    ip: &mut usize,
-    operation: fn(usize) -> usize,
-) -> () {
-    let x = memory[memory[*ip]];
-    *ip += 1;
+fn read_input() -> i32 {
+    1
+}
 
-    let _y = memory[memory[*ip]];
-    *ip += 1;
-
-    let index = memory[*ip];
-    memory[index] = operation(x);
-    *ip += 1;
+fn write_output(value: i32) {
+    print!("{}", value);
 }
