@@ -6,6 +6,7 @@
       <excludeFolder url="file://$MODULE_DIR$/day02/target" />
       <excludeFolder url="file://$MODULE_DIR$/day03/target" />
       <excludeFolder url="file://$MODULE_DIR$/day04/target" />
+      <excludeFolder url="file://$MODULE_DIR$/day05/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
