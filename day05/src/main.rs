@@ -20,17 +20,14 @@ fn main() -> Result<()> {
         .map(|x| Cell::new(x.parse::<i32>().unwrap()))
         .collect::<Vec<_>>();
     //println!("Values: {:?}", memory);
-    let result = execute_program(&memory, 1, 1);
+    let result = execute_program(&memory);
     println!("result: {:?}", result);
     Ok(())
 }
 
-fn execute_program(memory: &Vec<Cell<i32>>, arg1: i32, arg2: i32) -> i32 {
+fn execute_program(memory: &Vec<Cell<i32>>) -> i32 {
     let mut ip: usize = 0; // Instruction pointer
     let mut memory = memory.clone();
-    // Enter parameters
-    memory[1].set(arg1);
-    memory[2].set(arg2);
 
     loop {
         match read_op_code(&mut memory, &mut ip) {
@@ -89,36 +86,32 @@ fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &mut usize) -> (OpCode, u32) {
     (op_code, parameter_modes)
 }
 
-fn execute_instruction3<'a>(
-    memory: &'a mut Vec<Cell<i32>>,
+fn execute_instruction3(
+    memory: &mut Vec<Cell<i32>>,
     ip: &mut usize,
     parameter_modes: u32,
-    operation: fn(Parameter<'a>, Parameter<'a>, Parameter<'a>) -> (),
+    operation: fn(Parameter, Parameter, Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(&memory, ip, &mut param_modes);
-    let y = get_parameter(&memory, ip, &mut param_modes);
-    let z = get_parameter(&memory, ip, &mut param_modes);
+    let x = get_parameter(memory, ip, &mut param_modes);
+    let y = get_parameter(memory, ip, &mut param_modes);
+    let z = get_parameter(memory, ip, &mut param_modes);
 
     operation(x, y, z);
 }
 
 fn execute_instruction1<'a>(
-    memory: &'a mut Vec<Cell<i32>>,
+    memory: &mut Vec<Cell<i32>>,
     ip: &mut usize,
     parameter_modes: u32,
-    operation: fn(Parameter<'a>) -> (),
+    operation: fn(Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(&memory, ip, &mut param_modes);
+    let x = get_parameter(memory, ip, &mut param_modes);
     operation(x);
 }
 
-fn get_parameter<'a>(
-    memory: &'a Vec<Cell<i32>>,
-    ip: &mut usize,
-    parameter_modes: &mut u32,
-) -> Parameter<'a> {
+fn get_parameter(memory: &Vec<Cell<i32>>, ip: &mut usize, parameter_modes: &mut u32) -> Parameter {
     // Get the parameter mode for this parameter
     let parameter_mode = match *parameter_modes % 10 {
         0 => ParameterMode::Position,
@@ -135,22 +128,22 @@ fn get_parameter<'a>(
     }
 }
 
-enum Parameter<'a> {
+enum Parameter {
     ImmediateValue(i32),
-    CellReference(&'a Cell<i32>),
+    CellReference(*const Cell<i32>),
 }
 
-impl<'a> Parameter<'a> {
+impl<'a> Parameter {
     fn get(&self) -> i32 {
         match self {
-            Parameter::CellReference(cell) => cell.get(),
+            Parameter::CellReference(cell) => unsafe { cell.as_ref().unwrap().get() },
             Parameter::ImmediateValue(value) => *value,
         }
     }
 
     fn set(&self, value: i32) -> () {
         match self {
-            Parameter::CellReference(cell) => cell.set(value),
+            Parameter::CellReference(cell) => unsafe { cell.as_ref().unwrap().set(value) },
             Parameter::ImmediateValue(value) => panic!(format!(
                 "Attempted to write value {} to an immediate parameter",
                 value
@@ -169,5 +162,5 @@ fn read_input() -> i32 {
 }
 
 fn write_output(value: i32) {
-    print!("{}", value);
+    println!("{}", value);
 }
