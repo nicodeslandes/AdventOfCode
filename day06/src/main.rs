@@ -2,32 +2,18 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
 use std::fs::File;
-use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader};
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 
 #[derive(Debug)]
-struct GraphNode<'a> {
+struct GraphNode {
     key: String,
-    children: HashSet<&'a GraphNode<'a>>,
+    children: HashSet<String>,
 }
 
-impl<'a> Hash for GraphNode<'a> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.key.hash(state);
-    }
-}
-
-impl<'a> PartialEq for GraphNode<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-}
-impl<'a> Eq for GraphNode<'a> {}
-
-impl<'a> GraphNode<'a> {
-    fn new(key: &String) -> GraphNode<'a> {
+impl<'a> GraphNode {
+    fn new(key: &String) -> GraphNode {
         GraphNode {
             key: key.clone(),
             children: HashSet::new(),
@@ -36,22 +22,30 @@ impl<'a> GraphNode<'a> {
 }
 
 #[derive(Debug)]
-struct Graph<'a> {
-    nodes: HashMap<String, GraphNode<'a>>,
+struct Graph {
+    nodes: HashMap<String, GraphNode>,
 }
 
-impl<'a> Graph<'a> {
-    fn new() -> Graph<'a> {
+impl<'a> Graph {
+    fn new() -> Graph {
         Graph {
             nodes: HashMap::new(),
         }
     }
 
     fn add_node_link(&mut self, parent: &String, child: &String) {
-        let child_node = self.nodes.entry(*child).or_insert(GraphNode::new(child));
-        let parent_node = self.nodes.entry(*parent).or_insert(GraphNode::new(parent));
+        self.add_or_get_node(child);
+        let parent_node = self.add_or_get_node(parent);
 
-        parent_node.children.insert(&child_node);
+        parent_node.children.insert(child.clone());
+    }
+
+    fn add_or_get_node(&mut self, key: &String) -> &mut GraphNode {
+        self.nodes.entry(key.clone()).or_insert(GraphNode::new(key))
+    }
+
+    fn get_node(&self, key: &String) -> Option<&GraphNode> {
+        self.nodes.get(key)
     }
 }
 
@@ -67,9 +61,28 @@ fn main() -> Result<()> {
         let orbit = parse_line(line.unwrap());
         orbits.add_node_link(&orbit[0], &orbit[1])
     }
+    //println!("Values: {:?}", orbits);
 
-    println!("Values: {:?}", orbits);
+    let mut orbit_counts: HashMap<String, u32> = HashMap::new();
+    for key in orbits.nodes.keys() {
+        if !orbit_counts.contains_key(key) {
+            compute_orbit_count_for(&orbits, &mut orbit_counts, key)
+        }
+    }
+
+    println!("Orbit counts: {:?}", orbit_counts);
+
     Ok(())
+}
+
+fn compute_orbit_count_for(orbits: &Graph, orbit_counts: &mut HashMap<String, u32>, key: &String) {
+    let node = orbits.get_node(key).unwrap();
+    if !orbit_counts.contains_key(key) {
+        for child in node.children.iter() {
+            compute_orbit_count_for(orbits, orbit_counts, &child);
+        }
+        children
+    }
 }
 
 fn parse_line<'a>(line: String) -> Vec<String> {
