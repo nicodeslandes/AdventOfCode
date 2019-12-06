@@ -85,7 +85,54 @@ fn main() -> Result<()> {
     println!("Orbit counts: {:?}", orbit_counts);
 
     println!("Total count: {}", orbit_counts.values().sum::<u32>());
+
+    let you_node_parent = &orbits.get_node(&"YOU".to_string()).unwrap().parent;
+    let santa_node_parent = &orbits.get_node(&"SAN".to_string()).unwrap().parent;
+
+    let common_parent = find_common_parent(
+        &orbits,
+        &orbit_counts,
+        &"YOU".to_string(),
+        &"SAN".to_string(),
+    );
+
+    println!("Common parent: {}", common_parent);
     Ok(())
+}
+fn find_common_parent<'a>(
+    orbits: &'a Graph,
+    orbit_counts: &HashMap<String, u32>,
+    key1: &String,
+    key2: &String,
+) -> &'a String {
+    let key1_parents: HashSet<&String> = get_node_parents(&orbits, key1);
+    let key2_parents: HashSet<&String> = get_node_parents(&orbits, key2);
+
+    println!("Key1 parents: {:?}", key1_parents);
+    println!("Key2 parents: {:?}", key2_parents);
+
+    key1_parents
+        .intersection(&key2_parents)
+        .max_by_key(|key| orbit_counts.get(&key.to_string()).unwrap())
+        .unwrap()
+}
+
+fn get_node_parents<'a>(orbits: &'a Graph, key: &String) -> HashSet<&'a String> {
+    let mut key_parents: HashSet<&'a String> = HashSet::new();
+
+    let mut node = orbits.get_node(key);
+    while node.is_some() {
+        let parent = &node.unwrap().parent;
+        match parent {
+            Some(p) => {
+                key_parents.insert(&p);
+                node = orbits.get_node(&p);
+            }
+            None => node = None,
+        }
+    }
+
+    key_parents
 }
 
 fn compute_orbit_count_for(orbits: &Graph, orbit_counts: &mut HashMap<String, u32>, key: &String) {
