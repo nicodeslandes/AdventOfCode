@@ -86,25 +86,46 @@ fn main() -> Result<()> {
 
     println!("Total count: {}", orbit_counts.values().sum::<u32>());
 
-    let you_node_parent = &orbits.get_node(&"YOU".to_string()).unwrap().parent;
-    let santa_node_parent = &orbits.get_node(&"SAN".to_string()).unwrap().parent;
+    let mut distance_to_root: HashMap<String, u32> = HashMap::new();
+    for key in orbits.nodes.keys() {
+        compute_distance_to_root_for(&orbits, &mut distance_to_root, key);
+    }
 
-    let common_parent = find_common_parent(
-        &orbits,
-        &orbit_counts,
-        &"YOU".to_string(),
-        &"SAN".to_string(),
-    );
+    let position_you = "YOU".to_string();
+    let position_san = "SAN".to_string();
 
-    println!("Common parent: {}", common_parent);
+    let common_parents = find_common_parents(&orbits, &position_you, &position_san);
+
+    println!("Common parent: {:?}", common_parents);
+
+    // Find the one common parent that is a leaf is this sub-graph, ie that doesn't have any children in the set
+    // let closest_node = common_parents.iter().find(|x| {
+    //     orbits
+    //         .get_node(x)
+    //         .unwrap()
+    //         .children
+    //         .iter()
+    //         .all(|c| !common_parents.contains(c))
+    // });
+    // println!("Leaf: {:?}", closest_node);
+
+    // Or get the node farthest from the origin
+    let closest_node = common_parents
+        .iter()
+        .max_by_key(|k| distance_to_root.get(&k.to_string()).unwrap())
+        .expect("No common node found!");
+    println!("Leaf: {:?}", closest_node);
+
+    let orbital_transfer_count = distance_to_root[&position_you]
+        - distance_to_root[&closest_node.to_string()]
+        + distance_to_root[&position_san]
+        - distance_to_root[&closest_node.to_string()]
+        - 2; // Don't count the hop to the closest planet
+
+    println!("Hops: {}", orbital_transfer_count);
     Ok(())
 }
-fn find_common_parent<'a>(
-    orbits: &'a Graph,
-    orbit_counts: &HashMap<String, u32>,
-    key1: &String,
-    key2: &String,
-) -> &'a String {
+fn find_common_parents<'a>(orbits: &'a Graph, key1: &String, key2: &String) -> HashSet<&'a String> {
     let key1_parents: HashSet<&String> = get_node_parents(&orbits, key1);
     let key2_parents: HashSet<&String> = get_node_parents(&orbits, key2);
 
@@ -113,8 +134,8 @@ fn find_common_parent<'a>(
 
     key1_parents
         .intersection(&key2_parents)
-        .max_by_key(|key| orbit_counts.get(&key.to_string()).unwrap())
-        .unwrap()
+        .map(|s| *s)
+        .collect()
 }
 
 fn get_node_parents<'a>(orbits: &'a Graph, key: &String) -> HashSet<&'a String> {
@@ -153,6 +174,27 @@ fn compute_orbit_count_for(orbits: &Graph, orbit_counts: &mut HashMap<String, u3
     };
 
     orbit_counts.insert(node.key.clone(), count);
+}
+
+fn compute_distance_to_root_for(
+    orbits: &Graph,
+    distances_to_root: &mut HashMap<String, u32>,
+    key: &String,
+) -> u32 {
+    match distances_to_root.get(key) {
+        Some(value) => *value,
+        None => {
+            let node = orbits.get_node(key).unwrap();
+
+            let distance_to_root = match &node.parent {
+                Some(p) => 1 + compute_distance_to_root_for(orbits, distances_to_root, &p),
+                None => 0,
+            };
+
+            distances_to_root.insert(key.clone(), distance_to_root);
+            distance_to_root
+        }
+    }
 }
 
 fn parse_line<'a>(line: String) -> Vec<String> {
