@@ -1,7 +1,9 @@
 use std::cell::Cell;
 use std::env;
 use std::fs::File;
+use std::io::stdout;
 use std::io::Read;
+use std::io::Write;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 
@@ -23,26 +25,27 @@ fn main() -> Result<()> {
         })
         .collect::<Vec<_>>();
 
-        let mut max_output = 0;
+    let mut max_output = 0;
 
-        for i in 5..10 {
-            for j in 5..10 {
-                if j != i {
-                    for k in 5..10 {
-                        if k != i && k != j {
-                            for l in 5..10 {
-                                if l != i &&l != j &&l != k {
-                                    for m in 5..10 {
-                                        if m != i && m != j && m != k && m != l {
-                                            let phase_settings = vec!(i, j, k, l, m);
-                                            println!("Trying out {:?}", phase_settings);
-                                            let output = run_amplifiers(&memory, phase_settings);
-                                            println!("Output: {}", output);
-                                            if output > max_output {
-                                                max_output = output;
-                                            }
-                                            //run_amplifier(&memory, i, input: i64)
+    for i in 5..10 {
+        for j in 5..10 {
+            if j != i {
+                for k in 5..10 {
+                    if k != i && k != j {
+                        for l in 5..10 {
+                            if l != i && l != j && l != k {
+                                for m in 5..10 {
+                                    if m != i && m != j && m != k && m != l {
+                                        let phase_settings = vec![i, j, k, l, m];
+                                        //println!("Trying out {:?}", phase_settings);
+                                        let output = run_amplifiers(&memory, phase_settings);
+                                        //println!("Output: {}", output);
+                                        print!(".");
+                                        stdout().flush().ok();
+                                        if output > max_output {
+                                            max_output = output;
                                         }
+                                        //run_amplifier(&memory, i, input: i64)
                                     }
                                 }
                             }
@@ -51,29 +54,46 @@ fn main() -> Result<()> {
                 }
             }
         }
+    }
 
-    println!("Max output: {}", max_output);
+    println!("\nMax output: {}", max_output);
     Ok(())
 }
 
 fn run_amplifiers(instructions: &Vec<Cell<i64>>, phase_settings: Vec<i64>) -> i64 {
     let mut current_input = 0;
-    let mut contexts: Vec<_> = phase_settings.iter().map(|s| ExecutionContext::new(instructions, &vec!(*s))).collect();
+    let mut contexts: Vec<_> = phase_settings
+        .iter()
+        .map(|s| ExecutionContext::new(instructions, &vec![*s]))
+        .collect();
 
     // Initialize the 1st amplifier input
     while contexts.iter().any(|c| !c.ended) {
-        for i in 0 .. contexts.len() {
-            if contexts[i].ended { continue; }
-            println!("Running amplifier {}", i);
+        for i in 0..contexts.len() {
+            if contexts[i].ended {
+                continue;
+            }
+            // println!("Running amplifier {}", i);
+            // println!("===================",);
             let context = &mut contexts[i];
-            match run_amplifier(context, current_input) {
-                ExecutionResult::MoreInputNeeded => {
-                    //let next_context = contexts[(i+1)%contexts.len()];
-                    current_input = context.output.remove(0);
-                    println!("Extracting output: {}", current_input);
-                },
+            // println!(
+            //     "Memory:\n{:?}",
+            //     context.memory.iter().map(|x| x.get()).collect::<Vec<_>>()
+            // );
+
+            let result = run_amplifier(context, current_input);
+            // println!(
+            //     "Memory:\n{:?}",
+            //     context.memory.iter().map(|x| x.get()).collect::<Vec<_>>()
+            // );
+
+            current_input = context.output.remove(0);
+            // println!("Extracting output: {}", current_input);
+
+            match result {
+                ExecutionResult::MoreInputNeeded => {}
                 ExecutionResult::Exit => {
-                    println!("Amplifier {} ended", i);
+                    // println!("Amplifier {} ended", i);
                     break;
                 }
             }
@@ -93,22 +113,28 @@ struct ExecutionContext {
     memory: Vec<Cell<i64>>,
     input: Vec<i64>,
     output: Vec<i64>,
-    ended: bool
+    ended: bool,
 }
 
 impl ExecutionContext {
     fn new(memory: &Vec<Cell<i64>>, input: &Vec<i64>) -> ExecutionContext {
-        ExecutionContext { ip: Cell::new(0), memory: memory.clone(), input: input.clone(), output: vec!(), ended: false }
+        ExecutionContext {
+            ip: Cell::new(0),
+            memory: memory.clone(),
+            input: input.clone(),
+            output: vec![],
+            ended: false,
+        }
     }
 }
 
 enum ExecutionResult {
     MoreInputNeeded,
-    Exit
+    Exit,
 }
 
 fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
-    println!("Executing program; ip: {}", context.ip.get());
+    // println!("Executing program; ip: {}", context.ip.get());
     loop {
         match read_op_code(&context.memory, &context.ip) {
             (OpCode::Add, parameter_modes) => execute_instruction3(
@@ -126,7 +152,10 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
             }
             (OpCode::Input, parameter_modes) => {
                 if context.input.is_empty() {
-                    println!("Halting program due to input read; ip: {}", context.ip.get());
+                    // println!(
+                    //     "Halting program due to input read; ip: {}",
+                    //     context.ip.get()
+                    // );
                     // Revert the reading of the op-code, so we can read it again when the
                     // thread is resumed
                     context.ip.set(context.ip.get() - 1);
@@ -134,7 +163,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 }
 
                 let input_value = context.input.remove(0);
-                println!("Reading input {}", input_value);
+                // println!("Reading input {}", input_value);
                 execute_instruction1(&context.memory, &context.ip, parameter_modes, |a| {
                     a.set(input_value);
                 });
@@ -144,7 +173,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 execute_instruction1(&context.memory, &context.ip, parameter_modes, |a| {
                     output = a.get();
                 });
-                println!("Outputting {}", output);
+                // println!("Outputting {}", output);
                 context.output.push(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
@@ -171,13 +200,13 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                     c.set(if a.get() == b.get() { 1 } else { 0 });
                 })
             }
-            (OpCode::Exit, _) =>{
+            (OpCode::Exit, _) => {
                 context.ended = true;
                 return ExecutionResult::Exit;
-            } 
+            }
         }
 
-        //println!("Values: {:?}", memory);
+        // println!("Values: {:?}", memory);
     }
 }
 
