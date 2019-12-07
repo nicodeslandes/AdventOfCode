@@ -17,7 +17,7 @@ fn main() -> Result<()> {
         .split(",")
         .map(|x| {
             Cell::new(
-                x.parse::<i32>()
+                x.parse::<i64>()
                     .expect(format!("Failed to parse {}", x).as_str()),
             )
         })
@@ -25,22 +25,23 @@ fn main() -> Result<()> {
 
         let mut max_output = 0;
 
-        for i in 0..5 {
-            for j in 0..5 {
+        for i in 5..10 {
+            for j in 5..10 {
                 if j != i {
-                    for k in 0..5 {
+                    for k in 5..10 {
                         if k != i && k != j {
-                            for l in 0 ..5 {
+                            for l in 5..10 {
                                 if l != i &&l != j &&l != k {
-                                    for m in 0 .. 5 {
+                                    for m in 5..10 {
                                         if m != i && m != j && m != k && m != l {
                                             let phase_settings = vec!(i, j, k, l, m);
                                             println!("Trying out {:?}", phase_settings);
                                             let output = run_amplifiers(&memory, phase_settings);
+                                            println!("Output: {}", output);
                                             if output > max_output {
                                                 max_output = output;
                                             }
-                                            //run_amplifier(&memory, i, input: i32)
+                                            //run_amplifier(&memory, i, input: i64)
                                         }
                                     }
                                 }
@@ -55,96 +56,117 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_amplifiers(instructions: &Vec<Cell<i32>>, phase_settings: Vec<i32>) -> i32 {
+fn run_amplifiers(instructions: &Vec<Cell<i64>>, phase_settings: Vec<i64>) -> i64 {
     let mut current_input = 0;
-    for phase_setting in phase_settings {
-        current_input = run_amplifier(instructions, phase_setting, current_input);
+    let mut contexts: Vec<_> = phase_settings.iter().map(|s| ExecutionContext::new(instructions, &vec!(*s))).collect();
+
+    let mut stop = false;
+
+    // Initialize the 1st amplifier input
+    while !stop {
+        for i in 0 .. contexts.len() {
+            let context = &mut contexts[i];
+            match run_amplifier(context, current_input) {
+                ExecutionResult::MoreInputNeeded => {
+                    //let next_context = contexts[(i+1)%contexts.len()];
+                    current_input = context.output[context.output.len() - 1];
+                },
+                ExecutionResult::Exit => {
+                    stop = true;
+                    break;
+                }
+            }
+        }
     }
 
     current_input
 }
 
-fn run_amplifier(instructions: &Vec<Cell<i32>>, phase_setting: i32, input: i32) -> i32 {
-    // Make a copy of the program
-    let memory = instructions.clone();
-    let output = execute_program(&memory, vec!(phase_setting, input));
-    if output.len() == 0 {
-        panic!("No output was produced by the program!");
-    }
-
-    if output.len() > 1 {
-        println!("Warning! Unexpected output detected: {:?}", output);
-    }
-
-    output[0]
+fn run_amplifier(context: &mut ExecutionContext, input: i64) -> ExecutionResult {
+    context.input.push(input);
+    execute_program(context)
 }
 
-fn execute_program(memory: &Vec<Cell<i32>>, input: Vec<i32>) -> Vec<i32> {
-    let ip: Cell<usize> = Cell::new(0); // Instruction pointer
-    let mut memory = memory.clone();
-    let mut current_input_index = 0;
-    let mut output = vec!();
+struct ExecutionContext {
+    ip: Cell<usize>,
+    memory: Vec<Cell<i64>>,
+    input: Vec<i64>,
+    output: Vec<i64>
+}
 
+impl ExecutionContext {
+    fn new(memory: &Vec<Cell<i64>>, input: &Vec<i64>) -> ExecutionContext {
+        ExecutionContext { ip: Cell::new(0), memory: memory.clone(), input: input.clone(), output: vec!() }
+    }
+}
+
+enum ExecutionResult {
+    MoreInputNeeded,
+    Exit
+}
+
+fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
     loop {
-        match read_op_code(&mut memory, &ip) {
+        match read_op_code(&context.memory, &context.ip) {
             (OpCode::Add, parameter_modes) => execute_instruction3(
-                &mut memory,
-                &ip,
+                &context.memory,
+                &context.ip,
                 parameter_modes,
                 |a: Parameter, b: Parameter, c: Parameter| {
                     c.set(a.get() + b.get());
                 },
             ),
             (OpCode::Mult, parameter_modes) => {
-                execute_instruction3(&mut memory, &ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&context.memory, &context.ip, parameter_modes, |a, b, c| {
                     c.set(a.get() * b.get());
                 })
             }
             (OpCode::Input, parameter_modes) => {
-                execute_instruction1(&mut memory, &ip, parameter_modes, |a| {
-                    if current_input_index >= input.len() {
-                        panic!("Attempted to read past input array");
-                    }
-                    a.set(input[current_input_index]);
-                    current_input_index += 1;
-                })
+                if context.input.is_empty() {
+                    return ExecutionResult::MoreInputNeeded;
+                }
+
+                let input_value = context.input.remove(0);
+                execute_instruction1(&context.memory, &context.ip, parameter_modes, |a| {
+                    a.set(input_value);
+                });
             }
             (OpCode::Output, parameter_modes) => {
-                execute_instruction1(&mut memory, &ip, parameter_modes, |a| {
-                    output.push(a.get());
-                })
+                let mut output = 0;
+                execute_instruction1(&context.memory, &context.ip, parameter_modes, |a| {
+                    output = a.get();
+                });
+                context.output.push(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
-                execute_instruction2(&mut memory, &ip, parameter_modes, |a, b| {
+                execute_instruction2(&context.memory, &context.ip, parameter_modes, |a, b| {
                     if a.get() != 0 {
-                        jump_to(&ip, b.get());
+                        jump_to(&context.ip, b.get());
                     }
                 })
             }
             (OpCode::JumpIfFalse, parameter_modes) => {
-                execute_instruction2(&mut memory, &ip, parameter_modes, |a, b| {
+                execute_instruction2(&context.memory, &context.ip, parameter_modes, |a, b| {
                     if a.get() == 0 {
-                        jump_to(&ip, b.get());
+                        jump_to(&context.ip, b.get());
                     }
                 })
             }
             (OpCode::LessThan, parameter_modes) => {
-                execute_instruction3(&mut memory, &ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&context.memory, &context.ip, parameter_modes, |a, b, c| {
                     c.set(if a.get() < b.get() { 1 } else { 0 });
                 })
             }
             (OpCode::Equals, parameter_modes) => {
-                execute_instruction3(&mut memory, &ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&context.memory, &context.ip, parameter_modes, |a, b, c| {
                     c.set(if a.get() == b.get() { 1 } else { 0 });
                 })
             }
-            (OpCode::Exit, _) => break,
+            (OpCode::Exit, _) => return ExecutionResult::Exit
         }
 
         //println!("Values: {:?}", memory);
     }
-
-    output
 }
 
 enum OpCode {
@@ -159,11 +181,11 @@ enum OpCode {
     Equals,
 }
 
-fn jump_to(ip: &Cell<usize>, address: i32) {
+fn jump_to(ip: &Cell<usize>, address: i64) {
     ip.set(address as usize);
 }
 
-fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &Cell<usize>) -> (OpCode, u32) {
+fn read_op_code(memory: &Vec<Cell<i64>>, ip: &Cell<usize>) -> (OpCode, u32) {
     let value = memory[ip.get()].get();
     let op_code_value = value % 100;
     let parameter_modes = (value / 100) as u32;
@@ -186,7 +208,7 @@ fn read_op_code(memory: &mut Vec<Cell<i32>>, ip: &Cell<usize>) -> (OpCode, u32) 
 }
 
 fn execute_instruction1(
-    memory: &mut Vec<Cell<i32>>,
+    memory: &Vec<Cell<i64>>,
     ip: &Cell<usize>,
     parameter_modes: u32,
     mut operation: impl FnMut(Parameter) -> (),
@@ -197,7 +219,7 @@ fn execute_instruction1(
 }
 
 fn execute_instruction2(
-    memory: &mut Vec<Cell<i32>>,
+    memory: &Vec<Cell<i64>>,
     ip: &Cell<usize>,
     parameter_modes: u32,
     operation: impl Fn(Parameter, Parameter) -> (),
@@ -209,7 +231,7 @@ fn execute_instruction2(
 }
 
 fn execute_instruction3(
-    memory: &mut Vec<Cell<i32>>,
+    memory: &Vec<Cell<i64>>,
     ip: &Cell<usize>,
     parameter_modes: u32,
     operation: impl Fn(Parameter, Parameter, Parameter) -> (),
@@ -222,7 +244,7 @@ fn execute_instruction3(
 }
 
 fn get_parameter(
-    memory: &Vec<Cell<i32>>,
+    memory: &Vec<Cell<i64>>,
     ip: &Cell<usize>,
     parameter_modes: &mut u32,
 ) -> Parameter {
@@ -243,19 +265,19 @@ fn get_parameter(
 }
 
 enum Parameter {
-    ImmediateValue(i32),
-    CellReference(*const Cell<i32>),
+    ImmediateValue(i64),
+    CellReference(*const Cell<i64>),
 }
 
 impl<'a> Parameter {
-    fn get(&self) -> i32 {
+    fn get(&self) -> i64 {
         match self {
             Parameter::CellReference(cell) => unsafe { cell.as_ref().unwrap().get() },
             Parameter::ImmediateValue(value) => *value,
         }
     }
 
-    fn set(&self, value: i32) -> () {
+    fn set(&self, value: i64) -> () {
         match self {
             Parameter::CellReference(cell) => unsafe { cell.as_ref().unwrap().set(value) },
             Parameter::ImmediateValue(value) => panic!(format!(
