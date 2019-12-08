@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -20,32 +19,17 @@ fn main() -> Result<()> {
 
     const LAYER_LEN: usize = 25 * 6;
 
-    println!(
-        "{:?}",
-        pixels
-            .chunks(LAYER_LEN)
-            .map(|l| count_digits(l))
-            .min_by_key(|counts| get_count(counts, 0))
-            .map(|counts| get_count(&counts, 1) * get_count(&counts, 2))
-    );
-    Ok(())
-}
+    let layers: Vec<_> = pixels.chunks(LAYER_LEN).collect();
 
-fn get_count(counts: &HashMap<i32, u32>, digit: i32) -> u32 {
-    counts.get(&digit).map(|x| *x).unwrap_or_default()
-}
-
-fn count_digits(layer: &[i32]) -> HashMap<i32, u32> {
-    let mut digit_counts: HashMap<i32, u32> = HashMap::new();
-    for d in layer {
-        match digit_counts.get_mut(d) {
-            Some(count) => *count += 1,
-            None => {
-                digit_counts.insert(*d, 1);
-            }
+    for i in 0..LAYER_LEN {
+        // Find the 1 layer that doesn't have a transparent pixel
+        // at this position
+        let pixel = layers.iter().map(|l| l[i]).find(|x| *x != 2).unwrap();
+        print!("{}", if pixel == 0 { " " } else { "█" });
+        if i != 0 && i % 25 == 0 {
+            println!();
         }
     }
 
-    println!("Count for layer {:?}: {:?}", layer, digit_counts);
-    digit_counts
+    Ok(())
 }
