@@ -5,7 +5,68 @@ use std::fs::File;
 use std::io::Read;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
-type Memory = HashMap<usize, Cell<i64>>;
+//type Memory = HashMap<usize, Cell<i64>>;
+
+#[derive(Clone)]
+struct Memory {
+    _values: HashMap<usize, Cell<i64>>,
+}
+
+impl Memory {
+    fn new(values: HashMap<usize, Cell<i64>>) -> Memory {
+        Memory { _values: values }
+    }
+
+    fn get(&mut self, address: usize) -> i64 {
+        match self._values.get_mut(&address) {
+            Some(v) => v.get(),
+            None => {
+                self._values.insert(address, Cell::new(0));
+                0
+            }
+        }
+    }
+
+    fn get_cell(&mut self, address: usize) -> &Cell<i64> {
+        match self._values.get_mut(&address) {
+            Some(v) => v,
+            None => {
+                self._values.insert(address, Cell::new(0));
+                self._values.get(&address).unwrap()
+            }
+        }
+    }
+    fn set(&mut self, address: usize, value: i64) {
+        match self._values.get_mut(&address) {
+            Some(v) => v.set(value),
+            None => {
+                self._values.insert(address, Cell::new(value));
+            }
+        }
+    }
+}
+
+// impl Index<usize> for Memory {
+//     type Output = Cell<i64>;
+
+//     fn index(&self, index: usize) -> &Self::Output {
+//         &self._values[&index]
+//     }
+// }
+
+// impl IndexMut<usize> for Memory {
+//     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+//         let value = self._values.get_mut(&index);
+//         match value {
+//             Some(v) => v,
+//             None => {
+//                 self._values.insert(index, Cell::new(0));
+//                 let value = self._values.get_mut(&index).unwrap();
+//                 &mut value.clone()
+//             }
+//         }
+//     }
+// }
 
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
@@ -15,7 +76,7 @@ fn main() -> Result<()> {
         .read_to_string(&mut instructions)
         .expect("Failed to read input file");
 
-    let memory: Memory = instructions
+    let memory: HashMap<usize, Cell<i64>> = instructions
         .split(",")
         .map(|x| {
             Cell::new(
@@ -25,6 +86,7 @@ fn main() -> Result<()> {
         })
         .enumerate()
         .collect();
+    let memory = Memory::new(memory);
 
     let mut context = ExecutionContext::new(&memory, &vec![1]);
     execute_program(&mut context);
@@ -110,17 +172,16 @@ enum ExecutionResult {
 fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
     // println!("Executing program; ip: {}", context.ip.get());
     loop {
-        match read_op_code(&context.memory, &context.ip) {
+        match read_op_code(context) {
             (OpCode::Add, parameter_modes) => execute_instruction3(
-                &context.memory,
-                &context,
+                context,
                 parameter_modes,
                 |a: Parameter, b: Parameter, c: Parameter| {
                     c.set(a.get() + b.get());
                 },
             ),
             (OpCode::Mult, parameter_modes) => {
-                execute_instruction3(&context.memory, &context, parameter_modes, |a, b, c| {
+                execute_instruction3(context, parameter_modes, |a, b, c| {
                     c.set(a.get() * b.get());
                 })
             }
@@ -138,45 +199,55 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
 
                 let input_value = context.input.remove(0);
                 // println!("Reading input {}", input_value);
-                execute_instruction1(&context.memory, &context, parameter_modes, |a| {
+                execute_instruction1(context, parameter_modes, |a| {
                     a.set(input_value);
                 });
             }
             (OpCode::Output, parameter_modes) => {
                 let mut output = 0;
-                execute_instruction1(&context.memory, &context, parameter_modes, |a| {
+                execute_instruction1(context, parameter_modes, |a| {
                     output = a.get();
                 });
                 // println!("Outputting {}", output);
                 context.output.push(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
-                execute_instruction2(&context.memory, &context, parameter_modes, |a, b| {
+                let mut jump_address: Option<i64> = None;
+                execute_instruction2(context, parameter_modes, |a, b| {
                     if a.get() != 0 {
-                        jump_to(&context.ip, b.get());
+                        jump_address = Some(b.get());
                     }
-                })
+                });
+
+                if let Some(address) = jump_address {
+                    jump_to(&context.ip, address);
+                }
             }
             (OpCode::JumpIfFalse, parameter_modes) => {
-                execute_instruction2(&context.memory, &context, parameter_modes, |a, b| {
+                let mut jump_address: Option<i64> = None;
+                execute_instruction2(context, parameter_modes, |a, b| {
                     if a.get() == 0 {
-                        jump_to(&context.ip, b.get());
+                        jump_address = Some(b.get());
                     }
-                })
+                });
+
+                if let Some(address) = jump_address {
+                    jump_to(&context.ip, address);
+                }
             }
             (OpCode::LessThan, parameter_modes) => {
-                execute_instruction3(&context.memory, &context, parameter_modes, |a, b, c| {
+                execute_instruction3(context, parameter_modes, |a, b, c| {
                     c.set(if a.get() < b.get() { 1 } else { 0 });
                 })
             }
             (OpCode::Equals, parameter_modes) => {
-                execute_instruction3(&context.memory, &context, parameter_modes, |a, b, c| {
+                execute_instruction3(context, parameter_modes, |a, b, c| {
                     c.set(if a.get() == b.get() { 1 } else { 0 });
                 })
             }
             (OpCode::AdjustRelativeBase, parameter_modes) => {
                 let mut adjustment: i64 = 0;
-                execute_instruction1(&context.memory, &context, parameter_modes, |a| {
+                execute_instruction1(context, parameter_modes, |a| {
                     adjustment = a.get();
                 });
                 context.relative_base = context.relative_base + adjustment as usize;
@@ -208,8 +279,8 @@ fn jump_to(ip: &Cell<usize>, address: i64) {
     ip.set(address as usize);
 }
 
-fn read_op_code(memory: &Memory, ip: &Cell<usize>) -> (OpCode, u32) {
-    let value = memory[&ip.get()].get();
+fn read_op_code(context: &mut ExecutionContext) -> (OpCode, u32) {
+    let value = context.memory.get(context.ip.get());
     let op_code_value = value % 100;
     let parameter_modes = (value / 100) as u32;
 
@@ -227,51 +298,44 @@ fn read_op_code(memory: &Memory, ip: &Cell<usize>) -> (OpCode, u32) {
         x => panic!("Unknown op code: {}", x),
     };
 
-    ip.set(ip.get() + 1);
+    context.ip.set(context.ip.get() + 1);
     (op_code, parameter_modes)
 }
 
 fn execute_instruction1(
-    memory: &Memory,
-    context: &ExecutionContext,
+    context: &mut ExecutionContext,
     parameter_modes: u32,
     mut operation: impl FnMut(Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, context, &mut param_modes);
+    let x = get_parameter(context, &mut param_modes);
     operation(x);
 }
 
 fn execute_instruction2(
-    memory: &Memory,
-    context: &ExecutionContext,
+    context: &mut ExecutionContext,
     parameter_modes: u32,
-    operation: impl Fn(Parameter, Parameter) -> (),
+    mut operation: impl FnMut(Parameter, Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, context, &mut param_modes);
-    let y = get_parameter(memory, context, &mut param_modes);
+    let x = get_parameter(context, &mut param_modes);
+    let y = get_parameter(context, &mut param_modes);
     operation(x, y);
 }
 
 fn execute_instruction3(
-    memory: &Memory,
-    context: &ExecutionContext,
+    context: &mut ExecutionContext,
     parameter_modes: u32,
     operation: impl Fn(Parameter, Parameter, Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, context, &mut param_modes);
-    let y = get_parameter(memory, context, &mut param_modes);
-    let z = get_parameter(memory, context, &mut param_modes);
+    let x = get_parameter(context, &mut param_modes);
+    let y = get_parameter(context, &mut param_modes);
+    let z = get_parameter(context, &mut param_modes);
     operation(x, y, z);
 }
 
-fn get_parameter(
-    memory: &Memory,
-    context: &ExecutionContext,
-    parameter_modes: &mut u32,
-) -> Parameter {
+fn get_parameter(context: &mut ExecutionContext, parameter_modes: &mut u32) -> Parameter {
     // Get the parameter mode for this parameter
     let parameter_mode = match *parameter_modes % 10 {
         0 => ParameterMode::Position,
@@ -282,14 +346,17 @@ fn get_parameter(
     *parameter_modes /= 10;
 
     let ip = &context.ip;
-    let parameter_value = memory[&ip.get()].get();
+    let parameter_value = context.memory.get(ip.get());
     ip.set(ip.get() + 1);
 
     match parameter_mode {
-        ParameterMode::Position => Parameter::CellReference(&memory[&(parameter_value as usize)]),
+        ParameterMode::Position => {
+            Parameter::CellReference(context.memory.get_cell(parameter_value as usize))
+        }
         ParameterMode::Immediate => Parameter::ImmediateValue(parameter_value),
         ParameterMode::Relative => {
-            Parameter::CellReference(&memory[&(parameter_value as usize + context.relative_base)])
+            let address = (parameter_value + context.relative_base as i64) as usize;
+            Parameter::CellReference(context.memory.get_cell(address))
         }
     }
 }
