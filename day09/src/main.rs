@@ -28,21 +28,7 @@ impl Memory {
     }
 
     fn get_cell(&mut self, address: usize) -> &Cell<i64> {
-        match self._values.get_mut(&address) {
-            Some(v) => v,
-            None => {
-                self._values.insert(address, Cell::new(0));
-                self._values.get(&address).unwrap()
-            }
-        }
-    }
-    fn set(&mut self, address: usize, value: i64) {
-        match self._values.get_mut(&address) {
-            Some(v) => v.set(value),
-            None => {
-                self._values.insert(address, Cell::new(value));
-            }
-        }
+        self._values.entry(address).or_insert(Cell::new(0))
     }
 }
 
@@ -208,7 +194,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 execute_instruction1(context, parameter_modes, |a| {
                     output = a.get();
                 });
-                // println!("Outputting {}", output);
+                println!("{}", output);
                 context.output.push(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
@@ -250,7 +236,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 execute_instruction1(context, parameter_modes, |a| {
                     adjustment = a.get();
                 });
-                context.relative_base = context.relative_base + adjustment as usize;
+                context.relative_base = (context.relative_base as i64 + adjustment) as usize;
             }
             (OpCode::Exit, _) => {
                 context.ended = true;

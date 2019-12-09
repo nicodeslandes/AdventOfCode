@@ -9,7 +9,7 @@
         "request": "launch",
         "program": "${workspaceFolder}/target/debug/day09.exe",
         "args": [
-            "test.txt"
+            "input.txt"
         ],
         "stopAtEntry": false,
         "cwd": "${workspaceFolder}",
