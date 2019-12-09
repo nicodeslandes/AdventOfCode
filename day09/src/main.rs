@@ -86,6 +86,7 @@ struct ExecutionContext {
     input: Vec<i64>,
     output: Vec<i64>,
     ended: bool,
+    relative_base: usize,
 }
 
 impl ExecutionContext {
@@ -96,6 +97,7 @@ impl ExecutionContext {
             input: input.clone(),
             output: vec![],
             ended: false,
+            relative_base: 0,
         }
     }
 }
@@ -111,14 +113,14 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
         match read_op_code(&context.memory, &context.ip) {
             (OpCode::Add, parameter_modes) => execute_instruction3(
                 &context.memory,
-                &context.ip,
+                &context,
                 parameter_modes,
                 |a: Parameter, b: Parameter, c: Parameter| {
                     c.set(a.get() + b.get());
                 },
             ),
             (OpCode::Mult, parameter_modes) => {
-                execute_instruction3(&context.memory, &context.ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&context.memory, &context, parameter_modes, |a, b, c| {
                     c.set(a.get() * b.get());
                 })
             }
@@ -136,41 +138,48 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
 
                 let input_value = context.input.remove(0);
                 // println!("Reading input {}", input_value);
-                execute_instruction1(&context.memory, &context.ip, parameter_modes, |a| {
+                execute_instruction1(&context.memory, &context, parameter_modes, |a| {
                     a.set(input_value);
                 });
             }
             (OpCode::Output, parameter_modes) => {
                 let mut output = 0;
-                execute_instruction1(&context.memory, &context.ip, parameter_modes, |a| {
+                execute_instruction1(&context.memory, &context, parameter_modes, |a| {
                     output = a.get();
                 });
                 // println!("Outputting {}", output);
                 context.output.push(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
-                execute_instruction2(&context.memory, &context.ip, parameter_modes, |a, b| {
+                execute_instruction2(&context.memory, &context, parameter_modes, |a, b| {
                     if a.get() != 0 {
                         jump_to(&context.ip, b.get());
                     }
                 })
             }
             (OpCode::JumpIfFalse, parameter_modes) => {
-                execute_instruction2(&context.memory, &context.ip, parameter_modes, |a, b| {
+                execute_instruction2(&context.memory, &context, parameter_modes, |a, b| {
                     if a.get() == 0 {
                         jump_to(&context.ip, b.get());
                     }
                 })
             }
             (OpCode::LessThan, parameter_modes) => {
-                execute_instruction3(&context.memory, &context.ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&context.memory, &context, parameter_modes, |a, b, c| {
                     c.set(if a.get() < b.get() { 1 } else { 0 });
                 })
             }
             (OpCode::Equals, parameter_modes) => {
-                execute_instruction3(&context.memory, &context.ip, parameter_modes, |a, b, c| {
+                execute_instruction3(&context.memory, &context, parameter_modes, |a, b, c| {
                     c.set(if a.get() == b.get() { 1 } else { 0 });
                 })
+            }
+            (OpCode::AdjustRelativeBase, parameter_modes) => {
+                let mut adjustment: i64 = 0;
+                execute_instruction1(&context.memory, &context, parameter_modes, |a| {
+                    adjustment = a.get();
+                });
+                context.relative_base = context.relative_base + adjustment as usize;
             }
             (OpCode::Exit, _) => {
                 context.ended = true;
@@ -192,6 +201,7 @@ enum OpCode {
     JumpIfFalse,
     LessThan,
     Equals,
+    AdjustRelativeBase,
 }
 
 fn jump_to(ip: &Cell<usize>, address: i64) {
@@ -212,6 +222,7 @@ fn read_op_code(memory: &Memory, ip: &Cell<usize>) -> (OpCode, u32) {
         6 => OpCode::JumpIfFalse,
         7 => OpCode::LessThan,
         8 => OpCode::Equals,
+        9 => OpCode::AdjustRelativeBase,
         99 => OpCode::Exit,
         x => panic!("Unknown op code: {}", x),
     };
@@ -222,54 +233,64 @@ fn read_op_code(memory: &Memory, ip: &Cell<usize>) -> (OpCode, u32) {
 
 fn execute_instruction1(
     memory: &Memory,
-    ip: &Cell<usize>,
+    context: &ExecutionContext,
     parameter_modes: u32,
     mut operation: impl FnMut(Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, &ip, &mut param_modes);
+    let x = get_parameter(memory, context, &mut param_modes);
     operation(x);
 }
 
 fn execute_instruction2(
     memory: &Memory,
-    ip: &Cell<usize>,
+    context: &ExecutionContext,
     parameter_modes: u32,
     operation: impl Fn(Parameter, Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, &ip, &mut param_modes);
-    let y = get_parameter(memory, &ip, &mut param_modes);
+    let x = get_parameter(memory, context, &mut param_modes);
+    let y = get_parameter(memory, context, &mut param_modes);
     operation(x, y);
 }
 
 fn execute_instruction3(
     memory: &Memory,
-    ip: &Cell<usize>,
+    context: &ExecutionContext,
     parameter_modes: u32,
     operation: impl Fn(Parameter, Parameter, Parameter) -> (),
 ) -> () {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(memory, &ip, &mut param_modes);
-    let y = get_parameter(memory, &ip, &mut param_modes);
-    let z = get_parameter(memory, &ip, &mut param_modes);
+    let x = get_parameter(memory, context, &mut param_modes);
+    let y = get_parameter(memory, context, &mut param_modes);
+    let z = get_parameter(memory, context, &mut param_modes);
     operation(x, y, z);
 }
 
-fn get_parameter(memory: &Memory, ip: &Cell<usize>, parameter_modes: &mut u32) -> Parameter {
+fn get_parameter(
+    memory: &Memory,
+    context: &ExecutionContext,
+    parameter_modes: &mut u32,
+) -> Parameter {
     // Get the parameter mode for this parameter
     let parameter_mode = match *parameter_modes % 10 {
         0 => ParameterMode::Position,
         1 => ParameterMode::Immediate,
+        2 => ParameterMode::Relative,
         x => panic!(format!("Incorrect parameter mode: {}", x)),
     };
     *parameter_modes /= 10;
 
+    let ip = &context.ip;
     let parameter_value = memory[&ip.get()].get();
     ip.set(ip.get() + 1);
+
     match parameter_mode {
         ParameterMode::Position => Parameter::CellReference(&memory[&(parameter_value as usize)]),
         ParameterMode::Immediate => Parameter::ImmediateValue(parameter_value),
+        ParameterMode::Relative => {
+            Parameter::CellReference(&memory[&(parameter_value as usize + context.relative_base)])
+        }
     }
 }
 
@@ -300,4 +321,5 @@ impl<'a> Parameter {
 enum ParameterMode {
     Position,
     Immediate,
+    Relative,
 }
