@@ -74,7 +74,7 @@ fn main() -> Result<()> {
         .collect();
     let memory = Memory::new(memory);
 
-    let mut context = ExecutionContext::new(&memory, &vec![1]);
+    let mut context = ExecutionContext::new(&memory, &vec![2]);
     execute_program(&mut context);
 
     Ok(())
