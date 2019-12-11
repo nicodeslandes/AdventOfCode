@@ -53,28 +53,36 @@ fn main() -> Result<()> {
         .collect();
     let memory = Memory::new(memory);
 
-    let mut context = ExecutionContext::new(&memory, &vec![2]);
+    let input = || Some(2);
+    let output = |x| println!("Output: {}", x);
+    let mut context = ExecutionContext::new(&memory, &input, &output);
     execute_program(&mut context);
 
     Ok(())
 }
 
-struct ExecutionContext {
+struct ExecutionContext<'a> {
     ip: usize,
     memory: Memory,
-    input: Vec<i64>,
-    output: Vec<i64>,
+    //input: Vec<i64>,
+    //output: Vec<i64>,
     ended: bool,
     relative_base: usize,
+    input: &'a dyn Fn() -> Option<i64>,
+    output: &'a dyn Fn(i64) -> (),
 }
 
-impl ExecutionContext {
-    fn new(memory: &Memory, input: &Vec<i64>) -> ExecutionContext {
+impl<'a> ExecutionContext<'a> {
+    fn new(
+        memory: &Memory,
+        input: &'a dyn Fn() -> Option<i64>,
+        output: &'a dyn Fn(i64) -> (),
+    ) -> ExecutionContext<'a> {
         ExecutionContext {
             ip: 0,
             memory: memory.clone(),
-            input: input.clone(),
-            output: vec![],
+            input,
+            output,
             ended: false,
             relative_base: 0,
         }
@@ -103,30 +111,32 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 })
             }
             (OpCode::Input, parameter_modes) => {
-                if context.input.is_empty() {
-                    // println!(
-                    //     "Halting program due to input read; ip: {}",
-                    //     context.ip.get()
-                    // );
-                    // Revert the reading of the op-code, so we can read it again when the
-                    // thread is resumed
-                    context.ip -= 1;
-                    return ExecutionResult::MoreInputNeeded;
+                match (*context.input)() {
+                    Some(value) => {
+                        // println!("Reading input {}", input_value);
+                        execute_instruction1(context, parameter_modes, |a| {
+                            a.set(value);
+                        });
+                    }
+                    None => {
+                        // println!(
+                        //     "Halting program due to input read; ip: {}",
+                        //     context.ip.get()
+                        // );
+                        // Revert the reading of the op-code, so we can read it again when the
+                        // thread is resumed
+                        context.ip -= 1;
+                        return ExecutionResult::MoreInputNeeded;
+                    }
                 }
-
-                let input_value = context.input.remove(0);
-                // println!("Reading input {}", input_value);
-                execute_instruction1(context, parameter_modes, |a| {
-                    a.set(input_value);
-                });
             }
             (OpCode::Output, parameter_modes) => {
                 let mut output = 0;
                 execute_instruction1(context, parameter_modes, |a| {
                     output = a.get();
                 });
-                println!("{}", output);
-                context.output.push(output);
+                //println!("{}", output);
+                (*context.output)(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
                 let mut jump_address: Option<i64> = None;
