@@ -53,12 +53,32 @@ fn main() -> Result<()> {
         .collect();
     let memory = Memory::new(memory);
 
-    let input = || Some(2);
-    let output = |x| println!("Output: {}", x);
-    let mut context = ExecutionContext::new(&memory, &input, &output);
+    let mut position = (0, 0);
+    let mut panel: HashMap<(i32, i32), i64> = HashMap::new();
+    let mut output_mode = OutputMode::Color;
+    let painted_panel_count = 0;
+
+    let mut input = || panel.get(&position).map(|x| *x).or(Some(0));
+    let mut output = |x| {
+        println!("Output: {}", x);
+        match output_mode {
+            OutputMode::Color => {
+                if panel.insert(position, x).is_none() {
+                    painted_panel_count += 1;
+                }
+            }
+            _ => panic!(),
+        }
+    };
+    let mut context = ExecutionContext::new(&memory, &mut input, &mut output);
     execute_program(&mut context);
 
     Ok(())
+}
+
+enum OutputMode {
+    Color,
+    Rotation,
 }
 
 struct ExecutionContext<'a> {
@@ -68,15 +88,15 @@ struct ExecutionContext<'a> {
     //output: Vec<i64>,
     ended: bool,
     relative_base: usize,
-    input: &'a dyn Fn() -> Option<i64>,
-    output: &'a dyn Fn(i64) -> (),
+    input: &'a mut dyn FnMut() -> Option<i64>,
+    output: &'a mut dyn FnMut(i64) -> (),
 }
 
 impl<'a> ExecutionContext<'a> {
     fn new(
         memory: &Memory,
-        input: &'a dyn Fn() -> Option<i64>,
-        output: &'a dyn Fn(i64) -> (),
+        input: &'a mut dyn FnMut() -> Option<i64>,
+        output: &'a mut dyn FnMut(i64) -> (),
     ) -> ExecutionContext<'a> {
         ExecutionContext {
             ip: 0,
