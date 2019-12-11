@@ -53,24 +53,7 @@ fn main() -> Result<()> {
         .collect();
     let memory = Memory::new(memory);
 
-    let mut position = (0, 0);
-    let mut panel: HashMap<(i32, i32), i64> = HashMap::new();
-    let mut output_mode = OutputMode::Color;
-    let painted_panel_count = 0;
-
-    let mut input = || panel.get(&position).map(|x| *x).or(Some(0));
-    let mut output = |x| {
-        println!("Output: {}", x);
-        match output_mode {
-            OutputMode::Color => {
-                if panel.insert(position, x).is_none() {
-                    painted_panel_count += 1;
-                }
-            }
-            _ => panic!(),
-        }
-    };
-    let mut context = ExecutionContext::new(&memory, &mut input, &mut output);
+    let mut context = ExecutionContext::new(&memory);
     execute_program(&mut context);
 
     Ok(())
@@ -81,31 +64,37 @@ enum OutputMode {
     Rotation,
 }
 
-struct ExecutionContext<'a> {
+struct ExecutionContext {
     ip: usize,
     memory: Memory,
-    //input: Vec<i64>,
-    //output: Vec<i64>,
     ended: bool,
     relative_base: usize,
-    input: &'a mut dyn FnMut() -> Option<i64>,
-    output: &'a mut dyn FnMut(i64) -> (),
+
+    position: (i32, i32),
+    panel: HashMap<(i32, i32), i64>,
+    output_mode: OutputMode,
+    painted_panel_count: i32,
 }
 
-impl<'a> ExecutionContext<'a> {
-    fn new(
-        memory: &Memory,
-        input: &'a mut dyn FnMut() -> Option<i64>,
-        output: &'a mut dyn FnMut(i64) -> (),
-    ) -> ExecutionContext<'a> {
+impl ExecutionContext {
+    fn new(memory: &Memory) -> ExecutionContext {
         ExecutionContext {
             ip: 0,
             memory: memory.clone(),
-            input,
-            output,
             ended: false,
             relative_base: 0,
+            position: (0, 0),
+            panel: HashMap::new(),
+            output_mode: OutputMode::Color,
+            painted_panel_count: 0,
         }
+    }
+
+    fn read_input(&mut self) -> Option<i64> {
+        Some(2)
+    }
+    fn write_output(&mut self, value: i64) {
+        println!("Output: {}", value);
     }
 }
 
@@ -131,7 +120,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 })
             }
             (OpCode::Input, parameter_modes) => {
-                match (*context.input)() {
+                match context.read_input() {
                     Some(value) => {
                         // println!("Reading input {}", input_value);
                         execute_instruction1(context, parameter_modes, |a| {
@@ -156,7 +145,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                     output = a.get();
                 });
                 //println!("{}", output);
-                (*context.output)(output);
+                context.write_output(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
                 let mut jump_address: Option<i64> = None;
