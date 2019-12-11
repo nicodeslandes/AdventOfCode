@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::ops::Index;
+use std::ops::IndexMut;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
-//type Memory = HashMap<usize, Cell<i64>>;
 
 #[derive(Clone)]
 struct Memory {
@@ -16,43 +17,21 @@ impl Memory {
     fn new(values: HashMap<usize, Cell<i64>>) -> Memory {
         Memory { _values: values }
     }
+}
 
-    fn get(&mut self, address: usize) -> i64 {
-        match self._values.get_mut(&address) {
-            Some(v) => v.get(),
-            None => {
-                self._values.insert(address, Cell::new(0));
-                0
-            }
-        }
-    }
+impl Index<usize> for Memory {
+    type Output = Cell<i64>;
 
-    fn get_cell(&mut self, address: usize) -> &Cell<i64> {
-        self._values.entry(address).or_insert(Cell::new(0))
+    fn index(&self, index: usize) -> &Self::Output {
+        &self._values[&index]
     }
 }
 
-// impl Index<usize> for Memory {
-//     type Output = Cell<i64>;
-
-//     fn index(&self, index: usize) -> &Self::Output {
-//         &self._values[&index]
-//     }
-// }
-
-// impl IndexMut<usize> for Memory {
-//     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-//         let value = self._values.get_mut(&index);
-//         match value {
-//             Some(v) => v,
-//             None => {
-//                 self._values.insert(index, Cell::new(0));
-//                 let value = self._values.get_mut(&index).unwrap();
-//                 &mut value.clone()
-//             }
-//         }
-//     }
-// }
+impl IndexMut<usize> for Memory {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self._values.entry(index).or_insert(Cell::new(0))
+    }
+}
 
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
@@ -79,54 +58,6 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-// fn run_amplifiers(instructions: &Memory, phase_settings: Vec<i64>) -> i64 {
-//     let mut current_input = 0;
-//     let mut contexts: Vec<_> = phase_settings
-//         .iter()
-//         .map(|s| ExecutionContext::new(instructions, &vec![*s]))
-//         .collect();
-
-//     // Initialize the 1st amplifier input
-//     while contexts.iter().any(|c| !c.ended) {
-//         for i in 0..contexts.len() {
-//             if contexts[i].ended {
-//                 continue;
-//             }
-//             // println!("Running amplifier {}", i);
-//             // println!("===================",);
-//             let context = &mut contexts[i];
-//             // println!(
-//             //     "Memory:\n{:?}",
-//             //     context.memory.iter().map(|x| x.get()).collect::<Vec<_>>()
-//             // );
-
-//             let result = run_amplifier(context, current_input);
-//             // println!(
-//             //     "Memory:\n{:?}",
-//             //     context.memory.iter().map(|x| x.get()).collect::<Vec<_>>()
-//             // );
-
-//             current_input = context.output.remove(0);
-//             // println!("Extracting output: {}", current_input);
-
-//             match result {
-//                 ExecutionResult::MoreInputNeeded => {}
-//                 ExecutionResult::Exit => {
-//                     // println!("Amplifier {} ended", i);
-//                     break;
-//                 }
-//             }
-//         }
-//     }
-
-//     current_input
-// }
-
-// fn run_amplifier(context: &mut ExecutionContext, input: i64) -> ExecutionResult {
-//     context.input.push(input);
-//     execute_program(context)
-// }
 
 struct ExecutionContext {
     ip: Cell<usize>,
@@ -266,7 +197,7 @@ fn jump_to(ip: &Cell<usize>, address: i64) {
 }
 
 fn read_op_code(context: &mut ExecutionContext) -> (OpCode, u32) {
-    let value = context.memory.get(context.ip.get());
+    let value = context.memory[context.ip.get()].get();
     let op_code_value = value % 100;
     let parameter_modes = (value / 100) as u32;
 
@@ -332,17 +263,17 @@ fn get_parameter(context: &mut ExecutionContext, parameter_modes: &mut u32) -> P
     *parameter_modes /= 10;
 
     let ip = &context.ip;
-    let parameter_value = context.memory.get(ip.get());
+    let parameter_value = context.memory[ip.get()].get();
     ip.set(ip.get() + 1);
 
     match parameter_mode {
         ParameterMode::Position => {
-            Parameter::CellReference(context.memory.get_cell(parameter_value as usize))
+            Parameter::CellReference(&mut context.memory[parameter_value as usize])
         }
         ParameterMode::Immediate => Parameter::ImmediateValue(parameter_value),
         ParameterMode::Relative => {
             let address = (parameter_value + context.relative_base as i64) as usize;
-            Parameter::CellReference(context.memory.get_cell(address))
+            Parameter::CellReference(&mut context.memory[address])
         }
     }
 }
