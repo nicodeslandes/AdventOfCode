@@ -60,7 +60,7 @@ fn main() -> Result<()> {
 }
 
 struct ExecutionContext {
-    ip: Cell<usize>,
+    ip: usize,
     memory: Memory,
     input: Vec<i64>,
     output: Vec<i64>,
@@ -71,7 +71,7 @@ struct ExecutionContext {
 impl ExecutionContext {
     fn new(memory: &Memory, input: &Vec<i64>) -> ExecutionContext {
         ExecutionContext {
-            ip: Cell::new(0),
+            ip: 0,
             memory: memory.clone(),
             input: input.clone(),
             output: vec![],
@@ -110,7 +110,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                     // );
                     // Revert the reading of the op-code, so we can read it again when the
                     // thread is resumed
-                    context.ip.set(context.ip.get() - 1);
+                    context.ip -= 1;
                     return ExecutionResult::MoreInputNeeded;
                 }
 
@@ -137,7 +137,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 });
 
                 if let Some(address) = jump_address {
-                    jump_to(&context.ip, address);
+                    jump_to(&mut context.ip, address);
                 }
             }
             (OpCode::JumpIfFalse, parameter_modes) => {
@@ -149,7 +149,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 });
 
                 if let Some(address) = jump_address {
-                    jump_to(&context.ip, address);
+                    jump_to(&mut context.ip, address);
                 }
             }
             (OpCode::LessThan, parameter_modes) => {
@@ -192,12 +192,12 @@ enum OpCode {
     AdjustRelativeBase,
 }
 
-fn jump_to(ip: &Cell<usize>, address: i64) {
-    ip.set(address as usize);
+fn jump_to(ip: &mut usize, address: i64) {
+    *ip = address as usize;
 }
 
 fn read_op_code(context: &mut ExecutionContext) -> (OpCode, u32) {
-    let value = context.memory[context.ip.get()].get();
+    let value = context.memory[context.ip].get();
     let op_code_value = value % 100;
     let parameter_modes = (value / 100) as u32;
 
@@ -215,7 +215,7 @@ fn read_op_code(context: &mut ExecutionContext) -> (OpCode, u32) {
         x => panic!("Unknown op code: {}", x),
     };
 
-    context.ip.set(context.ip.get() + 1);
+    context.ip += 1;
     (op_code, parameter_modes)
 }
 
@@ -262,9 +262,8 @@ fn get_parameter(context: &mut ExecutionContext, parameter_modes: &mut u32) -> P
     };
     *parameter_modes /= 10;
 
-    let ip = &context.ip;
-    let parameter_value = context.memory[ip.get()].get();
-    ip.set(ip.get() + 1);
+    let parameter_value = context.memory[context.ip].get();
+    context.ip += 1;
 
     match parameter_mode {
         ParameterMode::Position => {
