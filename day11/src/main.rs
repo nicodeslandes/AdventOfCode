@@ -54,9 +54,31 @@ fn main() -> Result<()> {
     let memory = Memory::new(memory);
 
     let mut context = ExecutionContext::new(&memory);
+    context.panel.insert((0, 0), 1);
     execute_program(&mut context);
 
     println!("Painted panel count: {}", context.painted_panel_count);
+
+    let x_max = context.panel.keys().map(|p| p.0).max().unwrap() as usize;
+    let y_max = context.panel.keys().map(|p| p.1).max().unwrap() as usize;
+
+    println!(
+        "Grid dimensions: x: ({},{}), y: ({}, {})",
+        0, x_max, 0, y_max
+    );
+
+    let mut grid: Vec<Vec<bool>> = vec![vec![false; y_max + 1]; x_max + 1];
+    for ((x, y), color) in context.panel {
+        grid[x as usize][y as usize] = color == 1;
+    }
+
+    for y in 0..y_max + 1 {
+        for x in 0..x_max + 1 {
+            print!("{}", if grid[x][y] { "█" } else { " " })
+        }
+
+        println!()
+    }
     Ok(())
 }
 
