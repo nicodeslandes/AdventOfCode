@@ -56,6 +56,7 @@ fn main() -> Result<()> {
     let mut context = ExecutionContext::new(&memory);
     execute_program(&mut context);
 
+    println!("Painted panel count: {}", context.painted_panel_count);
     Ok(())
 }
 
@@ -71,6 +72,7 @@ struct ExecutionContext {
     relative_base: usize,
 
     position: (i32, i32),
+    direction: Direction,
     panel: HashMap<(i32, i32), i64>,
     output_mode: OutputMode,
     painted_panel_count: i32,
@@ -87,20 +89,65 @@ impl ExecutionContext {
             panel: HashMap::new(),
             output_mode: OutputMode::Color,
             painted_panel_count: 0,
+            direction: Direction::Up,
         }
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        Some(2)
+        let value = self.panel.get(&self.position).map(|x| *x).or(Some(0));
+        //println!("Reading input (position: {:?}): {:?}", self.position, value);
+        value
     }
+
     fn write_output(&mut self, value: i64) {
-        println!("Output: {}", value);
+        //println!("Output: {}", value);
+        match self.output_mode {
+            OutputMode::Color => {
+                if self.panel.insert(self.position, value).is_none() {
+                    self.painted_panel_count += 1;
+                }
+
+                self.output_mode = OutputMode::Rotation;
+            }
+            OutputMode::Rotation => {
+                // Rotate the robot
+                self.direction = match (value, self.direction) {
+                    (0, Direction::Up) => Direction::Left,
+                    (0, Direction::Left) => Direction::Down,
+                    (0, Direction::Down) => Direction::Right,
+                    (0, Direction::Right) => Direction::Up,
+                    (1, Direction::Up) => Direction::Right,
+                    (1, Direction::Left) => Direction::Up,
+                    (1, Direction::Down) => Direction::Left,
+                    (1, Direction::Right) => Direction::Down,
+                    (x, _) => panic!(format!("Invalid rotation value: {}", x)),
+                };
+
+                // Move it forward
+                self.position = match (self.position, self.direction) {
+                    ((x, y), Direction::Up) => (x, y - 1),
+                    ((x, y), Direction::Left) => (x - 1, y),
+                    ((x, y), Direction::Down) => (x, y + 1),
+                    ((x, y), Direction::Right) => (x + 1, y),
+                };
+
+                self.output_mode = OutputMode::Color;
+            }
+        }
     }
 }
 
 enum ExecutionResult {
     MoreInputNeeded,
     Exit,
+}
+
+#[derive(Copy, Clone)]
+enum Direction {
+    Up,
+    Left,
+    Down,
+    Right,
 }
 
 fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
