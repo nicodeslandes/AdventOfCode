@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -10,26 +9,26 @@ type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 
 #[derive(Clone)]
 struct Memory {
-    _values: HashMap<usize, Cell<i64>>,
+    _values: HashMap<usize, i64>,
 }
 
 impl Memory {
-    fn new(values: HashMap<usize, Cell<i64>>) -> Memory {
+    fn new(values: HashMap<usize, i64>) -> Memory {
         Memory { _values: values }
     }
 }
 
 impl Index<usize> for Memory {
-    type Output = Cell<i64>;
+    type Output = i64;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self._values[&index]
+        &self._values.get(&index).unwrap_or(&0)
     }
 }
 
 impl IndexMut<usize> for Memory {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self._values.entry(index).or_insert(Cell::new(0))
+        self._values.entry(index).or_insert(0)
     }
 }
 
@@ -41,13 +40,11 @@ fn main() -> Result<()> {
         .read_to_string(&mut instructions)
         .expect("Failed to read input file");
 
-    let memory: HashMap<usize, Cell<i64>> = instructions
+    let memory: HashMap<usize, i64> = instructions
         .split(",")
         .map(|x| {
-            Cell::new(
-                x.parse::<i64>()
-                    .expect(format!("Failed to parse {}", x).as_str()),
-            )
+            x.parse::<i64>()
+                .expect(format!("Failed to parse {}", x).as_str())
         })
         .enumerate()
         .collect();
@@ -176,25 +173,20 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
     // println!("Executing program; ip: {}", context.ip.get());
     loop {
         match read_op_code(context) {
-            (OpCode::Add, parameter_modes) => execute_instruction3(
-                context,
-                parameter_modes,
-                |a: Parameter, b: Parameter, c: Parameter| {
-                    c.set(a.get() + b.get());
-                },
-            ),
+            (OpCode::Add, parameter_modes) => {
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                c.set(a.get(context) + b.get(context), context);
+            }
             (OpCode::Mult, parameter_modes) => {
-                execute_instruction3(context, parameter_modes, |a, b, c| {
-                    c.set(a.get() * b.get());
-                })
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                c.set(a.get(context) * b.get(context), context);
             }
             (OpCode::Input, parameter_modes) => {
                 match context.read_input() {
                     Some(value) => {
                         // println!("Reading input {}", input_value);
-                        execute_instruction1(context, parameter_modes, |a| {
-                            a.set(value);
-                        });
+                        let a = extract_parameter(context, parameter_modes);
+                        a.set(value, context);
                     }
                     None => {
                         // println!(
@@ -209,20 +201,17 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 }
             }
             (OpCode::Output, parameter_modes) => {
-                let mut output = 0;
-                execute_instruction1(context, parameter_modes, |a| {
-                    output = a.get();
-                });
+                let a = extract_parameter(context, parameter_modes);
+                let output = a.get(&context);
                 //println!("{}", output);
                 context.write_output(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
                 let mut jump_address: Option<i64> = None;
-                execute_instruction2(context, parameter_modes, |a, b| {
-                    if a.get() != 0 {
-                        jump_address = Some(b.get());
-                    }
-                });
+                let (a, b) = extract_parameters2(context, parameter_modes);
+                if a.get(&context) != 0 {
+                    jump_address = Some(b.get(&context));
+                }
 
                 if let Some(address) = jump_address {
                     jump_to(&mut context.ip, address);
@@ -230,31 +219,36 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
             }
             (OpCode::JumpIfFalse, parameter_modes) => {
                 let mut jump_address: Option<i64> = None;
-                execute_instruction2(context, parameter_modes, |a, b| {
-                    if a.get() == 0 {
-                        jump_address = Some(b.get());
-                    }
-                });
+                let (a, b) = extract_parameters2(context, parameter_modes);
+                if a.get(&context) == 0 {
+                    jump_address = Some(b.get(&context));
+                }
 
                 if let Some(address) = jump_address {
                     jump_to(&mut context.ip, address);
                 }
             }
             (OpCode::LessThan, parameter_modes) => {
-                execute_instruction3(context, parameter_modes, |a, b, c| {
-                    c.set(if a.get() < b.get() { 1 } else { 0 });
-                })
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                let value = if a.get(&context) < b.get(&context) {
+                    1
+                } else {
+                    0
+                };
+                c.set(value, context);
             }
             (OpCode::Equals, parameter_modes) => {
-                execute_instruction3(context, parameter_modes, |a, b, c| {
-                    c.set(if a.get() == b.get() { 1 } else { 0 });
-                })
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                let value = if a.get(&context) == b.get(&context) {
+                    1
+                } else {
+                    0
+                };
+                c.set(value, context);
             }
             (OpCode::AdjustRelativeBase, parameter_modes) => {
-                let mut adjustment: i64 = 0;
-                execute_instruction1(context, parameter_modes, |a| {
-                    adjustment = a.get();
-                });
+                let a = extract_parameter(context, parameter_modes);
+                let adjustment = a.get(&context);
                 context.relative_base = (context.relative_base as i64 + adjustment) as usize;
             }
             (OpCode::Exit, _) => {
@@ -285,7 +279,7 @@ fn jump_to(ip: &mut usize, address: i64) {
 }
 
 fn read_op_code(context: &mut ExecutionContext) -> (OpCode, u32) {
-    let value = context.memory[context.ip].get();
+    let value = context.memory[context.ip];
     let op_code_value = value % 100;
     let parameter_modes = (value / 100) as u32;
 
@@ -307,37 +301,30 @@ fn read_op_code(context: &mut ExecutionContext) -> (OpCode, u32) {
     (op_code, parameter_modes)
 }
 
-fn execute_instruction1(
-    context: &mut ExecutionContext,
-    parameter_modes: u32,
-    mut operation: impl FnMut(Parameter) -> (),
-) -> () {
+fn extract_parameter(context: &mut ExecutionContext, parameter_modes: u32) -> Parameter {
     let mut param_modes = parameter_modes;
-    let x = get_parameter(context, &mut param_modes);
-    operation(x);
+    get_parameter(context, &mut param_modes)
 }
 
-fn execute_instruction2(
+fn extract_parameters2(
     context: &mut ExecutionContext,
     parameter_modes: u32,
-    mut operation: impl FnMut(Parameter, Parameter) -> (),
-) -> () {
+) -> (Parameter, Parameter) {
     let mut param_modes = parameter_modes;
     let x = get_parameter(context, &mut param_modes);
     let y = get_parameter(context, &mut param_modes);
-    operation(x, y);
+    (x, y)
 }
 
-fn execute_instruction3(
+fn extract_parameters3(
     context: &mut ExecutionContext,
     parameter_modes: u32,
-    operation: impl Fn(Parameter, Parameter, Parameter) -> (),
-) -> () {
+) -> (Parameter, Parameter, Parameter) {
     let mut param_modes = parameter_modes;
     let x = get_parameter(context, &mut param_modes);
     let y = get_parameter(context, &mut param_modes);
     let z = get_parameter(context, &mut param_modes);
-    operation(x, y, z);
+    (x, y, z)
 }
 
 fn get_parameter(context: &mut ExecutionContext, parameter_modes: &mut u32) -> Parameter {
@@ -350,37 +337,35 @@ fn get_parameter(context: &mut ExecutionContext, parameter_modes: &mut u32) -> P
     };
     *parameter_modes /= 10;
 
-    let parameter_value = context.memory[context.ip].get();
+    let parameter_value = context.memory[context.ip];
     context.ip += 1;
 
     match parameter_mode {
-        ParameterMode::Position => {
-            Parameter::CellReference(&mut context.memory[parameter_value as usize])
-        }
+        ParameterMode::Position => Parameter::Reference(parameter_value as usize),
         ParameterMode::Immediate => Parameter::ImmediateValue(parameter_value),
         ParameterMode::Relative => {
             let address = (parameter_value + context.relative_base as i64) as usize;
-            Parameter::CellReference(&mut context.memory[address])
+            Parameter::Reference(address)
         }
     }
 }
 
 enum Parameter {
     ImmediateValue(i64),
-    CellReference(*const Cell<i64>),
+    Reference(usize),
 }
 
 impl<'a> Parameter {
-    fn get(&self) -> i64 {
+    fn get(&self, context: &ExecutionContext) -> i64 {
         match self {
-            Parameter::CellReference(cell) => unsafe { cell.as_ref().unwrap().get() },
+            Parameter::Reference(address) => context.memory[*address],
             Parameter::ImmediateValue(value) => *value,
         }
     }
 
-    fn set(&self, value: i64) -> () {
+    fn set(&self, value: i64, context: &mut ExecutionContext) -> () {
         match self {
-            Parameter::CellReference(cell) => unsafe { cell.as_ref().unwrap().set(value) },
+            Parameter::Reference(address) => context.memory[*address] = value,
             Parameter::ImmediateValue(value) => panic!(format!(
                 "Attempted to write value {} to an immediate parameter",
                 value
