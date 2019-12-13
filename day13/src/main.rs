@@ -48,7 +48,7 @@ fn main() -> Result<()> {
                 }
             }
         } else {
-            backups.push(context.clone());
+            // backups.push(context.clone());
         }
         draw_panel(&context.panel, context.score);
 
@@ -60,22 +60,23 @@ fn main() -> Result<()> {
         //         .filter(|t| **t == TileType::Block)
         //         .count()
         // ));
-        let mut c = getch();
-        if c == 98
-        /*b*/
-        {
-            while c == 98
-            /*b*/
-            {
-                if let Some(new_context) = backups.pop() {
-                    context = new_context;
-                    clear();
-                    draw_panel(&context.panel, context.score);
-                }
-                c = getch();
-            }
-        }
+        // let mut c = getch();
+        // if c == 98
+        // /*b*/
+        // {
+        //     while c == 98
+        //     /*b*/
+        //     {
+        //         if let Some(new_context) = backups.pop() {
+        //             context = new_context;
+        //             clear();
+        //             draw_panel(&context.panel, context.score);
+        //         }
+        //         c = getch();
+        //     }
+        // }
 
+        let c = 97;
         context.next_input = Some(match c {
             32 /*space*/ => 0,
             113 /*q*/ => -1,
