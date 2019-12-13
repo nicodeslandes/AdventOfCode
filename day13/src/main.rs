@@ -19,37 +19,39 @@ fn main() -> Result<()> {
     let memory = Memory::parse(&instructions);
 
     let mut context = ExecutionContext::new(&memory);
-    context.panel.insert((0, 0), 1);
     execute_program(&mut context);
 
-    println!("Painted panel count: {}", context.painted_panel_count);
-
-    let x_max = context.panel.keys().map(|p| p.0).max().unwrap() as usize;
-    let y_max = context.panel.keys().map(|p| p.1).max().unwrap() as usize;
+    draw_panel(&context.panel);
 
     println!(
-        "Grid dimensions: x: ({},{}), y: ({}, {})",
-        0, x_max, 0, y_max
+        "Block tiles: {}",
+        context
+            .panel
+            .values()
+            .filter(|t| **t == TileType::Block)
+            .count()
     );
-
-    let mut grid: Vec<Vec<bool>> = vec![vec![false; y_max + 1]; x_max + 1];
-    for ((x, y), color) in context.panel {
-        grid[x as usize][y as usize] = color == 1;
-    }
-
-    for y in 0..y_max + 1 {
-        for x in 0..x_max + 1 {
-            print!("{}", if grid[x][y] { "█" } else { " " })
-        }
-
-        println!()
-    }
     Ok(())
 }
 
-enum OutputMode {
-    Color,
-    Rotation,
+fn draw_panel(panel: &HashMap<(i32, i32), TileType>) {
+    let x_max = panel.keys().map(|(x, _)| x).max().unwrap();
+    let y_max = panel.keys().map(|(x, _)| x).max().unwrap();
+    println!("Panel size: {}x{}", x_max, y_max);
+    for x in 0..*x_max {
+        for y in 0..*y_max {
+            let tile = panel.get(&(x, y)).unwrap_or(&TileType::Empty);
+            let c = match tile {
+                TileType::Empty => ' ',
+                TileType::Wall => '-',
+                TileType::Block => '■',
+                TileType::Paddle => '►',
+                TileType::Ball => '●',
+            };
+            print!("{}", c);
+        }
+        println!();
+    }
 }
 
 struct ExecutionContext {
@@ -57,12 +59,8 @@ struct ExecutionContext {
     memory: Memory,
     ended: bool,
     relative_base: usize,
-
-    position: (i32, i32),
-    direction: Direction,
-    panel: HashMap<(i32, i32), i64>,
-    output_mode: OutputMode,
-    painted_panel_count: i32,
+    panel: HashMap<(i32, i32), TileType>,
+    output: Vec<i32>,
 }
 
 impl ExecutionContext {
@@ -72,69 +70,47 @@ impl ExecutionContext {
             memory: memory.clone(),
             ended: false,
             relative_base: 0,
-            position: (0, 0),
             panel: HashMap::new(),
-            output_mode: OutputMode::Color,
-            painted_panel_count: 0,
-            direction: Direction::Up,
+            output: vec![],
         }
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        let value = self.panel.get(&self.position).map(|x| *x).or(Some(0));
-        //println!("Reading input (position: {:?}): {:?}", self.position, value);
-        value
+        None
     }
 
     fn write_output(&mut self, value: i64) {
         //println!("Output: {}", value);
-        match self.output_mode {
-            OutputMode::Color => {
-                if self.panel.insert(self.position, value).is_none() {
-                    self.painted_panel_count += 1;
-                }
+        self.output.push(value as i32);
+        if self.output.len() == 3 {
+            let position = (self.output[0], self.output[1]);
+            let tile_type = match self.output[2] {
+                0 => TileType::Empty,
+                1 => TileType::Wall,
+                2 => TileType::Block,
+                3 => TileType::Paddle,
+                4 => TileType::Ball,
+                x => panic!(format!("Invalid tile type: {}", x)),
+            };
 
-                self.output_mode = OutputMode::Rotation;
-            }
-            OutputMode::Rotation => {
-                // Rotate the robot
-                self.direction = match (value, self.direction) {
-                    (0, Direction::Up) => Direction::Left,
-                    (0, Direction::Left) => Direction::Down,
-                    (0, Direction::Down) => Direction::Right,
-                    (0, Direction::Right) => Direction::Up,
-                    (1, Direction::Up) => Direction::Right,
-                    (1, Direction::Left) => Direction::Up,
-                    (1, Direction::Down) => Direction::Left,
-                    (1, Direction::Right) => Direction::Down,
-                    (x, _) => panic!(format!("Invalid rotation value: {}", x)),
-                };
-
-                // Move it forward
-                self.position = match (self.position, self.direction) {
-                    ((x, y), Direction::Up) => (x, y - 1),
-                    ((x, y), Direction::Left) => (x - 1, y),
-                    ((x, y), Direction::Down) => (x, y + 1),
-                    ((x, y), Direction::Right) => (x + 1, y),
-                };
-
-                self.output_mode = OutputMode::Color;
-            }
+            self.panel.insert(position, tile_type);
+            self.output.clear();
         }
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum TileType {
+    Empty,
+    Wall,
+    Block,
+    Paddle,
+    Ball,
 }
 
 enum ExecutionResult {
     MoreInputNeeded,
     Exit,
-}
-
-#[derive(Copy, Clone)]
-enum Direction {
-    Up,
-    Left,
-    Down,
-    Right,
 }
 
 fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
@@ -157,10 +133,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                         a.set(value, context);
                     }
                     None => {
-                        // println!(
-                        //     "Halting program due to input read; ip: {}",
-                        //     context.ip.get()
-                        // );
+                        println!("Halting program due to input read; ip: {}", context.ip);
                         // Revert the reading of the op-code, so we can read it again when the
                         // thread is resumed
                         context.ip -= 1;
@@ -171,7 +144,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
             (OpCode::Output, parameter_modes) => {
                 let a = extract_parameter(context, parameter_modes);
                 let output = a.get(&context);
-                //println!("{}", output);
+                //println!("Output: {}", output);
                 context.write_output(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
