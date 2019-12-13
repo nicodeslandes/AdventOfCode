@@ -1,8 +1,11 @@
 use crate::memory::Memory;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
+extern crate ncurses;
+use ncurses::*; // watch for globs
 
 mod memory;
 
@@ -19,48 +22,127 @@ fn main() -> Result<()> {
     let memory = Memory::parse(&instructions);
 
     let mut context = ExecutionContext::new(&memory);
-    execute_program(&mut context);
+    context.memory[0] = 2;
 
-    draw_panel(&context.panel);
+    let locale_conf = LcCategory::all;
+    setlocale(locale_conf, "en_GB.UTF-8");
+    initscr();
 
-    println!(
-        "Block tiles: {}",
-        context
+    let mut backups: Vec<ExecutionContext> = vec![];
+
+    loop {
+        if let ExecutionResult::Exit = execute_program(&mut context) {
+            if context
+                .panel
+                .values()
+                .filter(|t| **t == TileType::Block)
+                .count()
+                < 3
+            {
+                break;
+            }
+
+            for _ in 0..5 {
+                if let Some(new_context) = backups.pop() {
+                    context = new_context;
+                }
+            }
+        } else {
+            backups.push(context.clone());
+        }
+        draw_panel(&context.panel, context.score);
+
+        // printw(&format!(
+        //     "Block tiles: {}",
+        //     context
+        //         .panel
+        //         .values()
+        //         .filter(|t| **t == TileType::Block)
+        //         .count()
+        // ));
+        let mut c = getch();
+        if c == 98
+        /*b*/
+        {
+            while c == 98
+            /*b*/
+            {
+                if let Some(new_context) = backups.pop() {
+                    context = new_context;
+                    clear();
+                    draw_panel(&context.panel, context.score);
+                }
+                c = getch();
+            }
+        }
+
+        context.next_input = Some(match c {
+            32 /*space*/ => 0,
+            113 /*q*/ => -1,
+            97 /*a*/ => {
+                let ball = context.panel.keys().find(|p| context.panel[p] == TileType::Ball).unwrap();
+                let paddle = context.panel.keys().find(|p| context.panel[p] == TileType::Paddle).unwrap();
+                match ball.0.cmp(&paddle.0) {
+                    Ordering::Equal => 0,
+                    Ordering::Less => -1,
+                    Ordering::Greater => 1
+                 }
+            },
+            _ => 1,
+        });
+
+        if context
             .panel
             .values()
             .filter(|t| **t == TileType::Block)
             .count()
-    );
+            == 0
+        {
+            break;
+        }
+        ncurses::clear();
+        //println!("Key: {}", c);
+    }
+
+    endwin();
+    println!("GAME OVER! Final score: {}", context.score);
+
     Ok(())
 }
 
-fn draw_panel(panel: &HashMap<(i32, i32), TileType>) {
+fn draw_panel(panel: &HashMap<(i32, i32), TileType>, score: i64) {
     let x_max = panel.keys().map(|(x, _)| x).max().unwrap();
     let y_max = panel.keys().map(|(x, _)| x).max().unwrap();
-    println!("Panel size: {}x{}", x_max, y_max);
-    for x in 0..*x_max {
-        for y in 0..*y_max {
+    //println!("Panel size: {}x{}", x_max, y_max);
+    for y in 0..*x_max {
+        for x in 0..*y_max {
             let tile = panel.get(&(x, y)).unwrap_or(&TileType::Empty);
             let c = match tile {
                 TileType::Empty => ' ',
-                TileType::Wall => '-',
-                TileType::Block => '■',
-                TileType::Paddle => '►',
-                TileType::Ball => '●',
+                TileType::Wall => 'H',
+                TileType::Block => 'A',
+                TileType::Paddle => '-',
+                TileType::Ball => 'o',
             };
-            print!("{}", c);
+            addstr(&format!("{}", c));
         }
-        println!();
+        addstr("\n");
     }
+
+    addstr(&format!("\nScore: {}\n", score));
+    refresh();
 }
 
+#[derive(Clone)]
 struct ExecutionContext {
     ip: usize,
     memory: Memory,
     ended: bool,
     relative_base: usize,
     panel: HashMap<(i32, i32), TileType>,
+    next_input: Option<i64>,
     output: Vec<i32>,
+    score: i64,
 }
 
 impl ExecutionContext {
@@ -72,11 +154,16 @@ impl ExecutionContext {
             relative_base: 0,
             panel: HashMap::new(),
             output: vec![],
+            next_input: Some(0),
+            score: 0,
         }
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        None
+        // println!("Current input: {:?}", self.next_input);
+        let res = self.next_input;
+        self.next_input = None;
+        res
     }
 
     fn write_output(&mut self, value: i64) {
@@ -84,22 +171,27 @@ impl ExecutionContext {
         self.output.push(value as i32);
         if self.output.len() == 3 {
             let position = (self.output[0], self.output[1]);
-            let tile_type = match self.output[2] {
-                0 => TileType::Empty,
-                1 => TileType::Wall,
-                2 => TileType::Block,
-                3 => TileType::Paddle,
-                4 => TileType::Ball,
-                x => panic!(format!("Invalid tile type: {}", x)),
-            };
 
-            self.panel.insert(position, tile_type);
+            if position == (-1, 0) {
+                self.score = self.output[2] as i64;
+            } else {
+                let tile_type = match self.output[2] {
+                    0 => TileType::Empty,
+                    1 => TileType::Wall,
+                    2 => TileType::Block,
+                    3 => TileType::Paddle,
+                    4 => TileType::Ball,
+                    x => panic!(format!("Invalid tile type: {}", x)),
+                };
+
+                self.panel.insert(position, tile_type);
+            }
             self.output.clear();
         }
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 enum TileType {
     Empty,
     Wall,
@@ -128,12 +220,12 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
             (OpCode::Input, parameter_modes) => {
                 match context.read_input() {
                     Some(value) => {
-                        // println!("Reading input {}", input_value);
+                        // println!("Reading input {}", value);
                         let a = extract_parameter(context, parameter_modes);
                         a.set(value, context);
                     }
                     None => {
-                        println!("Halting program due to input read; ip: {}", context.ip);
+                        // println!("Halting program due to input read; ip: {}", context.ip);
                         // Revert the reading of the op-code, so we can read it again when the
                         // thread is resumed
                         context.ip -= 1;
@@ -235,7 +327,7 @@ fn read_op_code(context: &mut ExecutionContext) -> (OpCode, u32) {
         8 => OpCode::Equals,
         9 => OpCode::AdjustRelativeBase,
         99 => OpCode::Exit,
-        x => panic!("Unknown op code: {}", x),
+        x => panic!("Unknown op code: {}; ip: {}", x, context.ip),
     };
 
     context.ip += 1;
