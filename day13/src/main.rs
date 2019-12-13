@@ -1,36 +1,12 @@
+use crate::memory::Memory;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
-use std::ops::Index;
-use std::ops::IndexMut;
+
+mod memory;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
-
-#[derive(Clone)]
-struct Memory {
-    _values: HashMap<usize, i64>,
-}
-
-impl Memory {
-    fn new(values: HashMap<usize, i64>) -> Memory {
-        Memory { _values: values }
-    }
-}
-
-impl Index<usize> for Memory {
-    type Output = i64;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self._values.get(&index).unwrap_or(&0)
-    }
-}
-
-impl IndexMut<usize> for Memory {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self._values.entry(index).or_insert(0)
-    }
-}
 
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
@@ -40,15 +16,7 @@ fn main() -> Result<()> {
         .read_to_string(&mut instructions)
         .expect("Failed to read input file");
 
-    let memory: HashMap<usize, i64> = instructions
-        .split(",")
-        .map(|x| {
-            x.parse::<i64>()
-                .expect(format!("Failed to parse {}", x).as_str())
-        })
-        .enumerate()
-        .collect();
-    let memory = Memory::new(memory);
+    let memory = Memory::parse(&instructions);
 
     let mut context = ExecutionContext::new(&memory);
     context.panel.insert((0, 0), 1);
