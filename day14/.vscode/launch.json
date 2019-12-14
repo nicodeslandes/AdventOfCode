@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/day14.exe",
             "args": [
-                "test.txt"
+                "test3.txt"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

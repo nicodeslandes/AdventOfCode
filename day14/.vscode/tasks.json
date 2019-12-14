@@ -13,7 +13,10 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "label": "build"
+            "label": "build",
+            "presentation": {
+                "clear": true
+            }
         }
     ]
 }
