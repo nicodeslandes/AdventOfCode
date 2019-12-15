@@ -25,9 +25,6 @@ fn main() -> Result<()> {
     let mut current_position: (i32, i32) = (0, 0);
     let mut loop_count = 0;
 
-    let get_cell_status = |ctx: &ExecutionContext, position: (i32, i32)| {
-        *ctx.grid.get(&position).unwrap_or(&CellStatus::Unknown)
-    };
     loop {
         context.next_input = Some(match next_move {
             Move::North => 1,
@@ -53,6 +50,7 @@ fn main() -> Result<()> {
                             status == CellStatus::Origin
                                 || status == CellStatus::VisitedAll
                                 || status == CellStatus::Wall
+                                || status == CellStatus::Oxygen
                         })
                         .count();
 
@@ -89,59 +87,48 @@ fn main() -> Result<()> {
                 context.grid.insert(target_position, CellStatus::Oxygen);
                 current_position = target_position;
                 draw_grid(&context.grid, None);
+                display_oxygen_location(&context, current_position);
                 break;
             }
         };
 
-        // Find an unknown neighbour first
-        let mut found_unknown = false;
-        for _ in 0..4 {
-            let new_pos = apply_move(current_position, next_move);
-            if let CellStatus::Unknown = get_cell_status(&context, new_pos) {
-                found_unknown = true;
-                break;
+        let search_for_next_move = || {
+            let unknown_neighbor_move = get_all_moves().into_iter().find(|m| {
+                let pos = apply_move(current_position, *m);
+                get_cell_status(&context, pos) == CellStatus::Unknown
+            });
+
+            // Find an unknown neighbour first
+            if unknown_neighbor_move.is_some() {
+                return unknown_neighbor_move;
             }
 
-            next_move = match next_move {
-                Move::North => Move::West,
-                Move::West => Move::South,
-                Move::South => Move::East,
-                Move::East => Move::North,
-            };
-        }
-
-        if found_unknown {
-            continue;
-        }
-
-        loop {
-            let new_pos = apply_move(current_position, next_move);
-            println!(
-                "Trying out moving {:?} to {:?}: {:?}",
-                next_move,
-                new_pos,
-                get_cell_status(&context, new_pos)
-            );
-
-            match get_cell_status(&context, new_pos) {
-                CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll => {
-                    // Search for another move
-                    draw_grid(&context.grid, Some(current_position));
+            // Find a neighbour that is not in a final state
+            let non_final_neighbor_move = get_all_moves().into_iter().find(|m| {
+                let pos = apply_move(current_position, *m);
+                // println!(
+                //     "Trying out moving {:?} to {:?}: {:?}",
+                //     next_move,
+                //     new_pos,
+                //     get_cell_status(&context, new_pos)
+                // );
+                match get_cell_status(&context, pos) {
+                    CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll => false,
+                    _ => true,
                 }
-                _ => break,
-            };
+            });
+            non_final_neighbor_move
+        };
 
-            next_move = match next_move {
-                Move::North => Move::West,
-                Move::West => Move::South,
-                Move::South => Move::East,
-                Move::East => Move::North,
-            };
+        let next_move_search_result = search_for_next_move();
+        match next_move_search_result {
+            Some(m) => next_move = m,
+            _ => break,
         }
 
         loop_count += 1;
         if found_new_cell || loop_count % 1_000_000 == 0 {
-            draw_grid(&context.grid, Some(current_position));
+            //draw_grid(&context.grid, Some(current_position));
         }
 
         if let ExecutionResult::Exit = execution_result {
@@ -149,6 +136,14 @@ fn main() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn get_all_moves() -> Vec<Move> {
+    vec![Move::North, Move::West, Move::South, Move::East]
+}
+
+fn display_oxygen_location(context: &ExecutionContext, position: (i32, i32)) {
     let visited_count = context
         .grid
         .values()
@@ -157,11 +152,13 @@ fn main() -> Result<()> {
     println!(
         "Required movements: {}; current position: {:?}; state: {:?}",
         visited_count + 1,
-        current_position,
-        get_cell_status(&context, current_position)
+        position,
+        get_cell_status(&context, position)
     );
+}
 
-    Ok(())
+fn get_cell_status(context: &ExecutionContext, position: (i32, i32)) -> CellStatus {
+    *context.grid.get(&position).unwrap_or(&CellStatus::Unknown)
 }
 
 fn apply_move(position: (i32, i32), m: Move) -> (i32, i32) {
