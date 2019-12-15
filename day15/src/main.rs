@@ -395,11 +395,11 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
             let c = match status {
                 CellStatus::Origin => "  O  ".to_string(),
                 CellStatus::Unknown => "     ".to_string(),
-                CellStatus::Wall => "█████".to_string(),
+                CellStatus::Wall => "WWWWW".to_string(),
                 // CellStatus::Visited(_) => format!("░░░░░"),
                 // CellStatus::VisitedAll(_) => format!("▒▒▒▒▒"),
                 CellStatus::Visited(i) => format!(" {:3} ", i),
-                CellStatus::VisitedAll(i) => format!("░{:3}░", i),
+                CellStatus::VisitedAll(i) => format!("-{:3}-", i),
                 CellStatus::Oxygen => "  O  ".to_string(),
             };
             print(&format!("{}", c));
@@ -409,7 +409,7 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
 
     println("");
     refresh();
-    //sleep(Duration::from_millis(20));
+    sleep(Duration::from_millis(20));
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -772,7 +772,8 @@ fn init() {
 
 #[cfg(unix)]
 fn clear() {
-    ncurses::clear();
+    //ncurses::clear();
+    ncurses::mv(0, 0);
 }
 
 #[cfg(windows)]
