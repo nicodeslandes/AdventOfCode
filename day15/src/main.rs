@@ -6,6 +6,9 @@ use std::io::Read;
 use std::thread::sleep;
 use std::time::Duration;
 
+#[cfg(unix)]
+extern crate ncurses;
+
 mod memory;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
@@ -18,6 +21,7 @@ fn main() -> Result<()> {
         .read_to_string(&mut instructions)
         .expect("Failed to read input file");
 
+    init();
     let memory = Memory::parse(&instructions);
 
     let mut context = ExecutionContext::new(&memory);
@@ -383,7 +387,7 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
             let reverse_y = y_max + (y_min - y);
             if let Some(c) = current {
                 if (x, reverse_y) == c {
-                    print!("  X  ");
+                    print("  X  ");
                     continue;
                 }
             }
@@ -398,12 +402,13 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
                 CellStatus::VisitedAll(i) => format!("░{:3}░", i),
                 CellStatus::Oxygen => "  O  ".to_string(),
             };
-            print!("{}", c);
+            print(&format!("{}", c));
         }
-        println!();
+        println("");
     }
 
-    println!();
+    println("");
+    refresh();
     //sleep(Duration::from_millis(20));
 }
 
@@ -704,15 +709,23 @@ enum ParameterMode {
 extern crate kernel32;
 extern crate winapi;
 
+#[cfg(windows)]
 use winapi::wincon::CONSOLE_SCREEN_BUFFER_INFO;
+#[cfg(windows)]
 use winapi::wincon::COORD;
+#[cfg(windows)]
 use winapi::wincon::SMALL_RECT;
+#[cfg(windows)]
 use winapi::DWORD;
+#[cfg(windows)]
 use winapi::HANDLE;
+#[cfg(windows)]
 use winapi::WORD;
 
+#[cfg(windows)]
 static mut CONSOLE_HANDLE: Option<HANDLE> = None;
 
+#[cfg(windows)]
 fn get_output_handle() -> HANDLE {
     unsafe {
         if let Some(handle) = CONSOLE_HANDLE {
@@ -725,6 +738,7 @@ fn get_output_handle() -> HANDLE {
     }
 }
 
+#[cfg(windows)]
 fn get_buffer_info() -> winapi::CONSOLE_SCREEN_BUFFER_INFO {
     let handle = get_output_handle();
     if handle == winapi::INVALID_HANDLE_VALUE {
@@ -748,6 +762,49 @@ fn get_buffer_info() -> winapi::CONSOLE_SCREEN_BUFFER_INFO {
     buffer
 }
 
+#[cfg(windows)]
+fn init() {}
+
+#[cfg(unix)]
+fn init() {
+    ncurses::initscr();
+}
+
+#[cfg(unix)]
+fn clear() {
+    ncurses::clear();
+}
+
+#[cfg(windows)]
+fn print(msg: &str) {
+    print!("{}", msg);
+}
+
+#[cfg(unix)]
+fn print(msg: &str) {
+    ncurses::printw(msg);
+}
+
+#[cfg(windows)]
+fn println(msg: &str) {
+    println!("{}", msg);
+}
+
+#[cfg(unix)]
+fn println(msg: &str) {
+    ncurses::addstr(msg);
+    ncurses::addstr("\n");
+}
+
+#[cfg(windows)]
+fn refresh() {}
+
+#[cfg(unix)]
+fn refresh() {
+    ncurses::refresh();
+}
+
+#[cfg(windows)]
 fn clear() {
     let handle = get_output_handle();
     if handle == winapi::INVALID_HANDLE_VALUE {
@@ -771,6 +828,7 @@ fn clear() {
     set_cursor_possition(0, 0);
 }
 
+#[cfg(windows)]
 fn set_cursor_possition(y: i16, x: i16) {
     let handle = get_output_handle();
     if handle == winapi::INVALID_HANDLE_VALUE {
