@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::thread::sleep;
+use std::time::Duration;
 
 mod memory;
 
@@ -149,7 +151,7 @@ fn main() -> Result<()> {
 
         loop_count += 1;
         if found_new_cell || loop_count % 1_000_000 == 0 {
-            //draw_grid(&context.grid, Some(current_position));
+            draw_grid(&context.grid, Some(current_position));
         }
 
         if let ExecutionResult::Exit = execution_result {
@@ -206,13 +208,14 @@ fn main() -> Result<()> {
                         //println!("Dead-ends for {:?}: {}", position, dead_end_count);
                         //draw_grid(&ctx.grid, Some(current_position));
 
-                        if get_cell_status(ctx, position) != CellStatus::Origin {
+                        if get_cell_status(ctx, position) != CellStatus::Oxygen {
                             // Mark the cell as visited; and compute the length from origin
                             let mut min_neighbouring_length = get_positions_around(position)
                                 .iter()
                                 .flat_map(|pos| match get_cell_status(&ctx, *pos) {
                                     CellStatus::Visited(x) | CellStatus::VisitedAll(x) => Some(x),
-                                    CellStatus::Origin | CellStatus::Oxygen => Some(0),
+                                    CellStatus::Origin => None,
+                                    CellStatus::Oxygen => Some(0),
                                     _ => None,
                                 })
                                 .min();
@@ -266,6 +269,7 @@ fn main() -> Result<()> {
             }
         };
 
+        draw_grid(&context.grid, None);
         let search_for_next_move = || {
             let unknown_neighbor_move = get_all_moves().into_iter().find(|m| {
                 let pos = apply_move(current_position, *m);
@@ -367,6 +371,8 @@ fn get_positions_around(position: (i32, i32)) -> Vec<(i32, i32)> {
 }
 
 fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>) {
+    clear();
+
     let x_min = *grid.keys().map(|(x, _)| x).min().unwrap();
     let x_max = *grid.keys().map(|(x, _)| x).max().unwrap();
     let y_min = *grid.keys().map(|(_, y)| y).min().unwrap();
@@ -377,17 +383,19 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
             let reverse_y = y_max + (y_min - y);
             if let Some(c) = current {
                 if (x, reverse_y) == c {
-                    print!("X");
+                    print!("  X  ");
                     continue;
                 }
             }
             let status = grid.get(&(x, reverse_y)).unwrap_or(&CellStatus::Unknown);
             let c = match status {
                 CellStatus::Origin => "  O  ".to_string(),
-                CellStatus::Unknown => "  ?  ".to_string(),
+                CellStatus::Unknown => "     ".to_string(),
                 CellStatus::Wall => "█████".to_string(),
-                CellStatus::Visited(i) => format!("v{:3}v", i),
-                CellStatus::VisitedAll(i) => format!(" {:3} ", i),
+                // CellStatus::Visited(_) => format!("░░░░░"),
+                // CellStatus::VisitedAll(_) => format!("▒▒▒▒▒"),
+                CellStatus::Visited(i) => format!(" {:3} ", i),
+                CellStatus::VisitedAll(i) => format!("░{:3}░", i),
                 CellStatus::Oxygen => "  O  ".to_string(),
             };
             print!("{}", c);
@@ -396,6 +404,7 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
     }
 
     println!();
+    //sleep(Duration::from_millis(20));
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -690,4 +699,84 @@ enum ParameterMode {
     Position,
     Immediate,
     Relative,
+}
+
+extern crate kernel32;
+extern crate winapi;
+
+use winapi::wincon::CONSOLE_SCREEN_BUFFER_INFO;
+use winapi::wincon::COORD;
+use winapi::wincon::SMALL_RECT;
+use winapi::DWORD;
+use winapi::HANDLE;
+use winapi::WORD;
+
+static mut CONSOLE_HANDLE: Option<HANDLE> = None;
+
+fn get_output_handle() -> HANDLE {
+    unsafe {
+        if let Some(handle) = CONSOLE_HANDLE {
+            return handle;
+        } else {
+            let handle = kernel32::GetStdHandle(winapi::STD_OUTPUT_HANDLE);
+            CONSOLE_HANDLE = Some(handle);
+            return handle;
+        }
+    }
+}
+
+fn get_buffer_info() -> winapi::CONSOLE_SCREEN_BUFFER_INFO {
+    let handle = get_output_handle();
+    if handle == winapi::INVALID_HANDLE_VALUE {
+        panic!("NoConsole")
+    }
+    let mut buffer = CONSOLE_SCREEN_BUFFER_INFO {
+        dwSize: COORD { X: 0, Y: 0 },
+        dwCursorPosition: COORD { X: 0, Y: 0 },
+        wAttributes: 0 as WORD,
+        srWindow: SMALL_RECT {
+            Left: 0,
+            Top: 0,
+            Right: 0,
+            Bottom: 0,
+        },
+        dwMaximumWindowSize: COORD { X: 0, Y: 0 },
+    };
+    unsafe {
+        kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer);
+    }
+    buffer
+}
+
+fn clear() {
+    let handle = get_output_handle();
+    if handle == winapi::INVALID_HANDLE_VALUE {
+        panic!("NoConsole")
+    }
+
+    let screen_buffer = get_buffer_info();
+    let console_size: DWORD = screen_buffer.dwSize.X as u32 * screen_buffer.dwSize.Y as u32;
+    let coord_screen = COORD { X: 0, Y: 0 };
+
+    let mut amount_chart_written: DWORD = 0;
+    unsafe {
+        kernel32::FillConsoleOutputCharacterW(
+            handle,
+            32 as winapi::WCHAR,
+            console_size,
+            coord_screen,
+            &mut amount_chart_written,
+        );
+    }
+    set_cursor_possition(0, 0);
+}
+
+fn set_cursor_possition(y: i16, x: i16) {
+    let handle = get_output_handle();
+    if handle == winapi::INVALID_HANDLE_VALUE {
+        panic!("NoConsole")
+    }
+    unsafe {
+        kernel32::SetConsoleCursorPosition(handle, COORD { X: x, Y: y });
+    }
 }

@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 rand = "0.5.5"
+winapi = "0.2.8"
+kernel32-sys = "0.2.1"
