@@ -39,7 +39,7 @@ fn main() -> Result<()> {
         let found_new_cell = !context.grid.contains_key(&target_position);
         let should_update_cell_status = |ctx: &ExecutionContext, position: (i32, i32)| {
             match get_cell_status(ctx, position) {
-                CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll => None,
+                CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll(_) => None,
                 _ => {
                     // How many visited-all or Wall positions do we have around the position
                     let dead_end_count = get_positions_around(position)
@@ -47,20 +47,37 @@ fn main() -> Result<()> {
                         .filter(|pos| {
                             let status = get_cell_status(&ctx, **pos);
                             //println!("Status for {:?}: {:?}", pos, status);
-                            status == CellStatus::Origin
-                                || status == CellStatus::VisitedAll
-                                || status == CellStatus::Wall
-                                || status == CellStatus::Oxygen
+                            match status {
+                                CellStatus::Origin
+                                | CellStatus::VisitedAll(_)
+                                | CellStatus::Wall
+                                | CellStatus::Oxygen => true,
+                                _ => false,
+                            }
                         })
                         .count();
 
                     //println!("Dead-ends for {:?}: {}", position, dead_end_count);
                     //draw_grid(&ctx.grid, Some(current_position));
                     if get_cell_status(ctx, position) != CellStatus::Origin {
+                        // Mark the cell as visited; and compute the length from origin
+                        let min_neighbouring_length = get_positions_around(position)
+                            .iter()
+                            .flat_map(|pos| match get_cell_status(&ctx, *pos) {
+                                CellStatus::Visited(x) | CellStatus::VisitedAll(x) => Some(x),
+                                CellStatus::Origin | CellStatus::Oxygen => Some(0),
+                                _ => None,
+                            })
+                            .min();
+
                         let new_status = if dead_end_count >= 3 {
-                            CellStatus::VisitedAll
+                            CellStatus::VisitedAll(
+                                min_neighbouring_length.expect("No neighbours?") + 1,
+                            )
                         } else {
-                            CellStatus::Visited
+                            CellStatus::Visited(
+                                min_neighbouring_length.expect("No neighbours?") + 1,
+                            )
                         };
                         Some(new_status)
                     } else {
@@ -113,7 +130,7 @@ fn main() -> Result<()> {
                 //     get_cell_status(&context, new_pos)
                 // );
                 match get_cell_status(&context, pos) {
-                    CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll => false,
+                    CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll(_) => false,
                     _ => true,
                 }
             });
@@ -123,7 +140,11 @@ fn main() -> Result<()> {
         let next_move_search_result = search_for_next_move();
         match next_move_search_result {
             Some(m) => next_move = m,
-            _ => break,
+            _ => {
+                println!("All done!");
+                draw_grid(&context.grid, Some(current_position));
+                break;
+            }
         }
 
         loop_count += 1;
@@ -136,6 +157,180 @@ fn main() -> Result<()> {
         }
     }
 
+    // ======================================================================
+    // Second phase: Find the longest path from the current position
+    // ======================================================================
+    // Reset all the Visited_all positions
+    for (_, v) in context.grid.iter_mut() {
+        match v {
+            //CellStatus::VisitedAll(value) => *v = CellStatus::Visited(*value),
+            CellStatus::VisitedAll(_) | CellStatus::Visited(_) => *v = CellStatus::Unknown,
+            _ => (),
+        }
+    }
+
+    draw_grid(&context.grid, Some(current_position));
+    loop {
+        context.next_input = Some(match next_move {
+            Move::North => 1,
+            Move::South => 2,
+            Move::West => 3,
+            Move::East => 4,
+        });
+        let execution_result = execute_program(&mut context);
+        //println!("Result: {:?}", context.result);
+        let target_position = apply_move(current_position, next_move);
+
+        let found_new_cell = !context.grid.contains_key(&target_position);
+        let should_update_cell_status =
+            |ctx: &ExecutionContext, position: (i32, i32)| -> Option<CellStatus> {
+                match get_cell_status(ctx, position) {
+                    CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll(_) => None,
+                    _ => {
+                        // How many visited-all or Wall positions do we have around the position
+                        let dead_end_count = get_positions_around(position)
+                            .iter()
+                            .filter(|pos| {
+                                let status = get_cell_status(&ctx, **pos);
+                                //println!("Status for {:?}: {:?}", pos, status);
+                                match status {
+                                    CellStatus::Origin
+                                    | CellStatus::VisitedAll(_)
+                                    | CellStatus::Wall
+                                    | CellStatus::Oxygen => true,
+                                    _ => false,
+                                }
+                            })
+                            .count();
+
+                        //println!("Dead-ends for {:?}: {}", position, dead_end_count);
+                        //draw_grid(&ctx.grid, Some(current_position));
+
+                        if get_cell_status(ctx, position) != CellStatus::Origin {
+                            // Mark the cell as visited; and compute the length from origin
+                            let mut min_neighbouring_length = get_positions_around(position)
+                                .iter()
+                                .flat_map(|pos| match get_cell_status(&ctx, *pos) {
+                                    CellStatus::Visited(x) | CellStatus::VisitedAll(x) => Some(x),
+                                    CellStatus::Origin | CellStatus::Oxygen => Some(0),
+                                    _ => None,
+                                })
+                                .min();
+
+                            if min_neighbouring_length.is_none() {
+                                println!("Couldn't find any neighbours for {:?}", position);
+                                for p in get_positions_around(position) {
+                                    let status = get_cell_status(&ctx, p);
+                                    println!("{:?}: {:?}", p, status);
+                                }
+
+                                min_neighbouring_length = Some(0);
+                            }
+
+                            let new_status = if dead_end_count >= 3 {
+                                CellStatus::VisitedAll(
+                                    min_neighbouring_length.expect("No neighbours?") + 1,
+                                )
+                            } else {
+                                CellStatus::Visited(
+                                    min_neighbouring_length.expect("No neighbours?") + 1,
+                                )
+                            };
+                            Some(new_status)
+                        } else {
+                            None
+                        }
+                    }
+                }
+            };
+
+        match context.result {
+            MoveResult::Moved => {
+                if let Some(status) = should_update_cell_status(&context, target_position) {
+                    context.grid.insert(target_position, status);
+                }
+                current_position = target_position;
+            }
+            MoveResult::HitWall => {
+                context.grid.insert(target_position, CellStatus::Wall);
+                if let Some(status) = should_update_cell_status(&context, current_position) {
+                    context.grid.insert(current_position, status);
+                }
+            }
+            MoveResult::FoundOxygen => {
+                context.grid.insert(target_position, CellStatus::Oxygen);
+                current_position = target_position;
+                draw_grid(&context.grid, None);
+                display_oxygen_location(&context, current_position);
+                break;
+            }
+        };
+
+        let search_for_next_move = || {
+            let unknown_neighbor_move = get_all_moves().into_iter().find(|m| {
+                let pos = apply_move(current_position, *m);
+                get_cell_status(&context, pos) == CellStatus::Unknown
+            });
+
+            // Find an unknown neighbour first
+            if unknown_neighbor_move.is_some() {
+                return unknown_neighbor_move;
+            }
+
+            // Find a neighbour that is not in a final state
+            let non_final_neighbor_move = get_all_moves().into_iter().find(|m| {
+                let pos = apply_move(current_position, *m);
+                // println!(
+                //     "Trying out moving {:?} to {:?}: {:?}",
+                //     next_move,
+                //     new_pos,
+                //     get_cell_status(&context, new_pos)
+                // );
+                match get_cell_status(&context, pos) {
+                    CellStatus::Origin | CellStatus::Wall | CellStatus::VisitedAll(_) => false,
+                    _ => true,
+                }
+            });
+            non_final_neighbor_move
+        };
+
+        let next_move_search_result = search_for_next_move();
+        match next_move_search_result {
+            Some(m) => next_move = m,
+            _ => {
+                println!("All done!");
+                draw_grid(&context.grid, Some(current_position));
+                break;
+            }
+        }
+
+        loop_count += 1;
+        if found_new_cell || loop_count % 1_000_000 == 0 {
+            //draw_grid(&context.grid, Some(current_position));
+        }
+
+        if let ExecutionResult::Exit = execution_result {
+            break;
+        }
+    }
+
+    draw_grid(&context.grid, Some(current_position));
+    println!(
+        "Current position: {:?}: {:?}",
+        current_position,
+        get_cell_status(&context, current_position)
+    );
+
+    let max_length = context
+        .grid
+        .values()
+        .map(|s| match s {
+            CellStatus::Visited(x) | CellStatus::VisitedAll(x) => *x,
+            _ => 0,
+        })
+        .max();
+    println!("Max length: {}", max_length.unwrap());
+
     Ok(())
 }
 
@@ -144,11 +339,7 @@ fn get_all_moves() -> Vec<Move> {
 }
 
 fn display_oxygen_location(context: &ExecutionContext, position: (i32, i32)) {
-    let visited_count = context
-        .grid
-        .values()
-        .filter(|s| **s == CellStatus::Visited)
-        .count();
+    let visited_count = context.grid.values().filter(|s| s.is_visited()).count();
     println!(
         "Required movements: {}; current position: {:?}; state: {:?}",
         visited_count + 1,
@@ -192,12 +383,12 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
             }
             let status = grid.get(&(x, reverse_y)).unwrap_or(&CellStatus::Unknown);
             let c = match status {
-                CellStatus::Origin => 'O',
-                CellStatus::Unknown => '?',
-                CellStatus::Wall => '█',
-                CellStatus::Visited => ' ',
-                CellStatus::VisitedAll => '░',
-                CellStatus::Oxygen => 'O',
+                CellStatus::Origin => "  O  ".to_string(),
+                CellStatus::Unknown => "  ?  ".to_string(),
+                CellStatus::Wall => "█████".to_string(),
+                CellStatus::Visited(i) => format!("v{:3}v", i),
+                CellStatus::VisitedAll(i) => format!(" {:3} ", i),
+                CellStatus::Oxygen => "  O  ".to_string(),
             };
             print!("{}", c);
         }
@@ -273,10 +464,19 @@ enum MoveResult {
 enum CellStatus {
     Origin,
     Unknown,
-    Visited,
-    VisitedAll,
+    Visited(i32),
+    VisitedAll(i32),
     Wall,
     Oxygen,
+}
+
+impl CellStatus {
+    fn is_visited(&self) -> bool {
+        match self {
+            CellStatus::Visited(_) | CellStatus::VisitedAll(_) => true,
+            _ => false,
+        }
+    }
 }
 
 enum ExecutionResult {
