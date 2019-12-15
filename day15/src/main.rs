@@ -19,12 +19,62 @@ fn main() -> Result<()> {
     let memory = Memory::parse(&instructions);
 
     let mut context = ExecutionContext::new(&memory);
-    context.memory[0] = 2;
+    context.grid.insert((0, 0), CellStatus::Origin);
 
+    let mut next_move = Move::North;
+    let mut current_position: (i32, i32) = (0, 0);
+    let mut loop_count = 0;
     loop {
-        if let ExecutionResult::MoreInputNeeded = execute_program(&mut context) {
-            draw_grid(&context.grid);
-        } else {
+        context.next_input = Some(match next_move {
+            Move::North => 1,
+            Move::South => 2,
+            Move::West => 3,
+            Move::East => 4,
+        });
+        let execution_result = execute_program(&mut context);
+        //println!("Result: {:?}", context.result);
+        let (x, y) = current_position;
+        let target_position = match next_move {
+            Move::North => (x, y + 1),
+            Move::South => (x, y - 1),
+            Move::West => (x - 1, y),
+            Move::East => (x + 1, y),
+        };
+
+        let found_new_cell = !context.grid.contains_key(&target_position);
+        match context.result {
+            MoveResult::Moved => {
+                context
+                    .grid
+                    .entry(target_position)
+                    .or_insert(CellStatus::Visited);
+                current_position = target_position;
+            }
+            MoveResult::HitWall => {
+                context.grid.insert(target_position, CellStatus::Wall);
+                next_move = match rand::random::<u32>() % 4 {
+                    0 => Move::West,
+                    1 => Move::East,
+                    2 => Move::South,
+                    3 => Move::North,
+                    _ => panic!("Huh?"),
+                }
+            }
+            MoveResult::FoundOxygen => {
+                context.grid.insert(target_position, CellStatus::Oxygen);
+                draw_grid(&context.grid, None);
+                break;
+            }
+        }
+
+        loop_count += 1;
+
+        if found_new_cell || loop_count % 1_000_000 == 0 {
+            draw_grid(&context.grid, Some(current_position));
+            println!();
+        }
+
+        if let ExecutionResult::Exit = execution_result {
             break;
         }
     }
@@ -32,23 +82,40 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>) {
-    let x_max = grid.keys().map(|(x, _)| x).max().unwrap();
-    let y_max = grid.keys().map(|(x, _)| x).max().unwrap();
+fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>) {
+    let x_min = *grid.keys().map(|(x, _)| x).min().unwrap();
+    let x_max = *grid.keys().map(|(x, _)| x).max().unwrap();
+    let y_min = *grid.keys().map(|(_, y)| y).min().unwrap();
+    let y_max = *grid.keys().map(|(_, y)| y).max().unwrap();
     //println!("Panel size: {}x{}", x_max, y_max);
-    for y in 0..*x_max {
-        for x in 0..*y_max {
-            let status = grid.get(&(x, y)).unwrap_or(&CellStatus::Unknown);
+    for y in y_min..y_max + 1 {
+        for x in x_min..x_max + 1 {
+            let reverse_y = y_max + (y_min - y);
+            if let Some(c) = current {
+                if (x, reverse_y) == c {
+                    print!("X");
+                    continue;
+                }
+            }
+            let status = grid.get(&(x, reverse_y)).unwrap_or(&CellStatus::Unknown);
             let c = match status {
-                CellStatus::Unknown => ' ',
-                CellStatus::Wall => 'W',
-                CellStatus::Visited => '#',
+                CellStatus::Origin => 'O',
+                CellStatus::Unknown => '?',
+                CellStatus::Wall => '█',
+                CellStatus::Visited => ' ',
                 CellStatus::Oxygen => 'O',
             };
             print!("{}", c);
         }
         println!();
     }
+}
+
+enum Move {
+    North,
+    South,
+    West,
+    East,
 }
 
 #[derive(Clone)]
@@ -78,14 +145,14 @@ impl ExecutionContext {
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        // println!("Current input: {:?}", self.next_input);
+        //println!("Reading input: {:?}", self.next_input);
         let res = self.next_input;
         self.next_input = None;
         res
     }
 
     fn write_output(&mut self, value: i64) {
-        //println!("Output: {}", value);
+        //println!("Writing output: {}", value);
         self.output.push(value as i32);
         self.result = match self.output[0] {
             0 => MoveResult::HitWall,
@@ -107,6 +174,7 @@ enum MoveResult {
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 enum CellStatus {
+    Origin,
     Unknown,
     Visited,
     Wall,
