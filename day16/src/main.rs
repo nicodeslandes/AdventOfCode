@@ -21,7 +21,9 @@ fn main() -> MainResult<()> {
 
     println!("Input: {:?}", input);
 
-    input = calculate_iteration(&input);
+    for _ in 0..100 {
+        input = calculate_iteration(&input);
+    }
     println!("Input: {:?}", input);
     Ok(())
 }
@@ -58,12 +60,8 @@ fn calculate_iteration(input: &Vec<i32>) -> Vec<i32> {
     for i in 0..input.len() {
         let pattern = Pattern::new(i + 1);
 
-        let r = input
-            .iter()
-            .zip(pattern)
-            .map(|(v, p)| v * p % 10)
-            .fold(0, |x, y| (x + y) % 10);
-        result.push(r);
+        let r: i32 = input.iter().zip(pattern).map(|(v, p)| v * p).sum();
+        result.push((r % 10).abs());
     }
 
     result
