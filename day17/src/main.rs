@@ -1,4 +1,5 @@
 use crate::memory::Memory;
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -11,6 +12,32 @@ extern crate ncurses;
 mod memory;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+struct Pos(i32, i32);
+
+enum Cell {
+    Robot(RobotStatus),
+    Empty,
+    Scaffold,
+}
+
+impl Cell {
+    fn is_scaffold(&self) -> bool {
+        match self {
+            Cell::Scaffold => true,
+            _ => false,
+        }
+    }
+}
+
+enum RobotStatus {
+    Up,
+    Down,
+    Left,
+    Right,
+    Falling,
+}
 
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
@@ -27,8 +54,69 @@ fn main() -> Result<()> {
 
     execute_program(&mut context);
     draw_grid(&context.output);
+    let grid = build_grid(&context.output);
+    let x_max = *grid.keys().map(|Pos(x, _)| x).max().unwrap();
+    let y_max = *grid.keys().map(|Pos(_, y)| y).max().unwrap();
 
+    let is_scaffold = |pos| grid[&pos].is_scaffold();
+
+    // Find the number of cells that have 4 scaffolds around them
+    let intersections: i32 = grid
+        .iter()
+        .filter(|(Pos(x, y), cell)| {
+            *x < x_max
+                && *x > 0
+                && *y < y_max
+                && *y > 0
+                && cell.is_scaffold()
+                && is_scaffold(Pos(x + 1, *y))
+                && is_scaffold(Pos(x - 1, *y))
+                && is_scaffold(Pos(*x, y + 1))
+                && is_scaffold(Pos(*x, y - 1))
+        })
+        .map(|(Pos(x, y), _)| *x * *y)
+        .sum();
+
+    println!("Result: {}", intersections);
     Ok(())
+}
+
+fn build_grid(chars: &Vec<i32>) -> HashMap<Pos, Cell> {
+    let mut map = HashMap::new();
+    let mut x = 0;
+    let mut y = 0;
+
+    for v in chars {
+        match v {
+            10 => {
+                y += 1;
+                x = 0;
+            }
+            c => {
+                let cell = match *c as u8 as char {
+                    '.' => Cell::Empty,
+                    '#' => Cell::Scaffold,
+                    x => parse_robot_cell(x),
+                };
+
+                map.insert(Pos(x, y), cell);
+                x += 1;
+            }
+        }
+    }
+
+    map
+}
+
+fn parse_robot_cell(ch: char) -> Cell {
+    let status = match ch {
+        '^' => RobotStatus::Up,
+        '>' => RobotStatus::Left,
+        'v' => RobotStatus::Down,
+        '<' => RobotStatus::Right,
+        x => panic!("Unknown char: {}", x),
+    };
+    Cell::Robot(status)
 }
 
 fn draw_grid(chars: &Vec<i32>) {
