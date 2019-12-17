@@ -2,7 +2,8 @@ use crate::memory::Memory;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
-use std::io::Read;
+use std::io::Write;
+use std::io::{stdin, stdout, Read};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -59,25 +60,51 @@ fn main() -> Result<()> {
     let y_max = *grid.keys().map(|Pos(_, y)| y).max().unwrap();
 
     let is_scaffold = |pos| grid[&pos].is_scaffold();
+    let is_intersection = |Pos(x, y)| {
+        x < x_max
+            && x > 0
+            && y < y_max
+            && y > 0
+            && is_scaffold(Pos(x, y))
+            && is_scaffold(Pos(x + 1, y))
+            && is_scaffold(Pos(x - 1, y))
+            && is_scaffold(Pos(x, y + 1))
+            && is_scaffold(Pos(x, y - 1))
+    };
 
     // Find the number of cells that have 4 scaffolds around them
     let intersections: i32 = grid
         .iter()
-        .filter(|(Pos(x, y), cell)| {
-            *x < x_max
-                && *x > 0
-                && *y < y_max
-                && *y > 0
-                && cell.is_scaffold()
-                && is_scaffold(Pos(x + 1, *y))
-                && is_scaffold(Pos(x - 1, *y))
-                && is_scaffold(Pos(*x, y + 1))
-                && is_scaffold(Pos(*x, y - 1))
-        })
+        .filter(|(pos, _)| is_intersection(**pos))
         .map(|(Pos(x, y), _)| *x * *y)
         .sum();
 
     println!("Result: {}", intersections);
+
+    // Part 2
+    context = ExecutionContext::new(&memory);
+    context.memory[0] = 2;
+    context.input = String::new();
+    context.input += "A,B,B,C,C,A,B,B,C,A\n";
+    context.input += "R,4,R,12,R,10,L,12\n";
+    context.input += "L,12,R,4,R,12\n";
+    context.input += "L,12,L,8,R,10\n";
+    context.input += "y\n";
+
+    loop {
+        match execute_program(&mut context) {
+            ExecutionResult::Exit => break,
+            ExecutionResult::MoreInputNeeded => {
+                print!("Input: ");
+                stdout().flush().unwrap();
+                let mut input = String::new();
+                stdin().read_line(&mut input).unwrap();
+                context.input = input.replace("\r", "");
+                context.input_index = 0;
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -139,7 +166,8 @@ struct ExecutionContext {
     memory: Memory,
     ended: bool,
     relative_base: usize,
-    next_input: Option<i64>,
+    input: String,
+    input_index: usize,
     output: Vec<i32>,
 }
 
@@ -151,20 +179,32 @@ impl ExecutionContext {
             ended: false,
             relative_base: 0,
             output: vec![],
-            next_input: Some(0),
+            input_index: 0,
+            input: String::new(),
         }
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        //println!("Reading input: {:?}", self.next_input);
-        let res = self.next_input;
-        self.next_input = None;
+        let index = self.input_index;
+        self.input_index += 1;
+        let res = self.input.chars().nth(index).map(|x| x as i64);
+
+        //println!("Reading input: {:?}", res);
         res
     }
 
     fn write_output(&mut self, value: i64) {
         //println!("{}", value);
+        if value > 128 {
+            println!("Result: {}", value);
+            return;
+        }
+        print!("{}", value as u8 as char);
         self.output.push(value as i32);
+        if value == 10 && self.output[self.output.len() - 2] == 10 {
+            set_cursor_possition(0, 0);
+            sleep(Duration::from_millis(0));
+        }
         //self.output.clear();
     }
 }
@@ -194,7 +234,7 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                         a.set(value, context);
                     }
                     None => {
-                        // println!("Halting program due to input read; ip: {}", context.ip);
+                        //println!("Halting program due to input read; ip: {}", context.ip);
                         // Revert the reading of the op-code, so we can read it again when the
                         // thread is resumed
                         context.ip -= 1;
