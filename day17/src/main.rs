@@ -141,6 +141,7 @@ fn parse_robot_cell(ch: char) -> Cell {
         '>' => RobotStatus::Left,
         'v' => RobotStatus::Down,
         '<' => RobotStatus::Right,
+        'X' => RobotStatus::Falling,
         x => panic!("Unknown char: {}", x),
     };
     Cell::Robot(status)
@@ -249,24 +250,16 @@ fn execute_program(context: &mut ExecutionContext) -> ExecutionResult {
                 context.write_output(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
-                let mut jump_address: Option<i64> = None;
                 let (a, b) = extract_parameters2(context, parameter_modes);
                 if a.get(&context) != 0 {
-                    jump_address = Some(b.get(&context));
-                }
-
-                if let Some(address) = jump_address {
+                    let address = b.get(&context);
                     jump_to(&mut context.ip, address);
                 }
             }
             (OpCode::JumpIfFalse, parameter_modes) => {
-                let mut jump_address: Option<i64> = None;
                 let (a, b) = extract_parameters2(context, parameter_modes);
                 if a.get(&context) == 0 {
-                    jump_address = Some(b.get(&context));
-                }
-
-                if let Some(address) = jump_address {
+                    let address = b.get(&context);
                     jump_to(&mut context.ip, address);
                 }
             }
