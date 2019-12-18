@@ -1,5 +1,7 @@
 extern crate num;
 
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::fs::File;
 use std::io;
@@ -10,12 +12,39 @@ use std::result::Result;
 
 type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
 
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+struct Pos(usize, usize);
+
+enum Content {
+    Key(char),
+    Door(char)
+}
+
 fn main() -> MainResult<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
     let file = File::open(file_name)?;
 
-    let mut input_orig = String::new();
-    BufReader::new(file).read_to_string(&mut input_orig)?;
+    let mut walls: HashSet<Pos> = HashSet::new();
+    let mut state: HashMap<Pos, Content>= HashMap::new();
+
+    let mut y = 0;
+    let mut current_pos: Pos;
+    loop {
+        let mut line = String::new();
+        let read = BufReader::new(file).read_line(&mut line)?;
+        if read == 0 {break;}
+
+        for (x, ch) in line.chars().enumerate() {
+            let pos = Pos(x, y);
+            match ch {
+                '#' => walls.insert(Pos(x, y)),
+                '.' => (),
+                '@' => current_pos = pos,
+                x => 
+            }
+        }
+    }
+
     let mut input_orig: Vec<i32> = input_orig
         .chars()
         .map(|c| c.to_string().parse().unwrap())
