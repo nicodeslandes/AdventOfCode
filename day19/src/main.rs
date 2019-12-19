@@ -22,7 +22,7 @@ fn main() -> Result<()> {
         .read_to_string(&mut instructions)
         .expect("Failed to read input file");
 
-    init();
+    //init();
     let memory = Memory::parse(&instructions);
 
     let mut context = ExecutionContext::new(&memory);
@@ -36,15 +36,18 @@ fn main() -> Result<()> {
 
     let mut hits: HashSet<(i64, i64)> = HashSet::new();
 
-    for y in 0..50 {
-        for x in 0..50 {
+    for y in 994..1100 {
+        let mut line_hits = 0;
+        print!("{}", y);
+        for x in 788..1100 {
             //println!("Result {}x{}: {}", x, y, run(x, y));
             print!("{}", if run(x, y) == 1 { '#' } else { '.' });
             if run(x, y) == 1 {
                 hits.insert((x, y));
+                line_hits += 1;
             };
         }
-        println!();
+        println!("{}", line_hits);
     }
 
     println!("Result: {}", hits.len());
@@ -301,144 +304,143 @@ enum ParameterMode {
     Relative,
 }
 
-extern crate kernel32;
-extern crate winapi;
+// extern crate kernel32;
 
-#[cfg(windows)]
-use winapi::wincon::CONSOLE_SCREEN_BUFFER_INFO;
-#[cfg(windows)]
-use winapi::wincon::COORD;
-#[cfg(windows)]
-use winapi::wincon::SMALL_RECT;
-#[cfg(windows)]
-use winapi::DWORD;
-#[cfg(windows)]
-use winapi::HANDLE;
-#[cfg(windows)]
-use winapi::WORD;
+// #[cfg(windows)]
+// use winapi::wincon::CONSOLE_SCREEN_BUFFER_INFO;
+// #[cfg(windows)]
+// use winapi::wincon::COORD;
+// #[cfg(windows)]
+// use winapi::wincon::SMALL_RECT;
+// #[cfg(windows)]
+// use winapi::DWORD;
+// #[cfg(windows)]
+// use winapi::HANDLE;
+// #[cfg(windows)]
+// use winapi::WORD;
 
-#[allow(dead_code)]
-#[cfg(windows)]
-static mut CONSOLE_HANDLE: Option<HANDLE> = None;
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// static mut CONSOLE_HANDLE: Option<HANDLE> = None;
 
-#[allow(dead_code)]
-#[cfg(windows)]
-fn get_output_handle() -> HANDLE {
-    unsafe {
-        if let Some(handle) = CONSOLE_HANDLE {
-            return handle;
-        } else {
-            let handle = kernel32::GetStdHandle(winapi::STD_OUTPUT_HANDLE);
-            CONSOLE_HANDLE = Some(handle);
-            return handle;
-        }
-    }
-}
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// fn get_output_handle() -> HANDLE {
+//     unsafe {
+//         if let Some(handle) = CONSOLE_HANDLE {
+//             return handle;
+//         } else {
+//             let handle = kernel32::GetStdHandle(winapi::STD_OUTPUT_HANDLE);
+//             CONSOLE_HANDLE = Some(handle);
+//             return handle;
+//         }
+//     }
+// }
 
-#[allow(dead_code)]
-#[cfg(windows)]
-fn get_buffer_info() -> winapi::CONSOLE_SCREEN_BUFFER_INFO {
-    let handle = get_output_handle();
-    if handle == winapi::INVALID_HANDLE_VALUE {
-        panic!("NoConsole")
-    }
-    let mut buffer = CONSOLE_SCREEN_BUFFER_INFO {
-        dwSize: COORD { X: 0, Y: 0 },
-        dwCursorPosition: COORD { X: 0, Y: 0 },
-        wAttributes: 0 as WORD,
-        srWindow: SMALL_RECT {
-            Left: 0,
-            Top: 0,
-            Right: 0,
-            Bottom: 0,
-        },
-        dwMaximumWindowSize: COORD { X: 0, Y: 0 },
-    };
-    unsafe {
-        kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer);
-    }
-    buffer
-}
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// fn get_buffer_info() -> winapi::CONSOLE_SCREEN_BUFFER_INFO {
+//     let handle = get_output_handle();
+//     if handle == winapi::INVALID_HANDLE_VALUE {
+//         panic!("NoConsole")
+//     }
+//     let mut buffer = CONSOLE_SCREEN_BUFFER_INFO {
+//         dwSize: COORD { X: 0, Y: 0 },
+//         dwCursorPosition: COORD { X: 0, Y: 0 },
+//         wAttributes: 0 as WORD,
+//         srWindow: SMALL_RECT {
+//             Left: 0,
+//             Top: 0,
+//             Right: 0,
+//             Bottom: 0,
+//         },
+//         dwMaximumWindowSize: COORD { X: 0, Y: 0 },
+//     };
+//     unsafe {
+//         kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer);
+//     }
+//     buffer
+// }
 
-#[cfg(windows)]
-fn init() {}
+// #[cfg(windows)]
+// fn init() {}
 
-#[cfg(unix)]
-fn init() {
-    ncurses::initscr();
-}
+// #[cfg(unix)]
+// fn init() {
+//     ncurses::initscr();
+// }
 
-#[cfg(unix)]
-fn clear() {
-    //ncurses::clear();
-    ncurses::mv(0, 0);
-}
+// #[cfg(unix)]
+// fn clear() {
+//     //ncurses::clear();
+//     ncurses::mv(0, 0);
+// }
 
-#[allow(dead_code)]
-#[cfg(windows)]
-fn print(msg: &str) {
-    print!("{}", msg);
-}
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// fn print(msg: &str) {
+//     print!("{}", msg);
+// }
 
-#[cfg(unix)]
-fn print(msg: &str) {
-    ncurses::printw(msg);
-}
+// #[cfg(unix)]
+// fn print(msg: &str) {
+//     ncurses::printw(msg);
+// }
 
-#[allow(dead_code)]
-#[cfg(windows)]
-fn println(msg: &str) {
-    println!("{}", msg);
-}
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// fn println(msg: &str) {
+//     println!("{}", msg);
+// }
 
-#[cfg(unix)]
-fn println(msg: &str) {
-    ncurses::addstr(msg);
-    ncurses::addstr("\n");
-}
+// #[cfg(unix)]
+// fn println(msg: &str) {
+//     ncurses::addstr(msg);
+//     ncurses::addstr("\n");
+// }
 
-#[allow(dead_code)]
-#[cfg(windows)]
-fn refresh() {}
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// fn refresh() {}
 
-#[cfg(unix)]
-fn refresh() {
-    ncurses::refresh();
-}
+// #[cfg(unix)]
+// fn refresh() {
+//     ncurses::refresh();
+// }
 
-#[allow(dead_code)]
-#[cfg(windows)]
-fn clear() {
-    let handle = get_output_handle();
-    if handle == winapi::INVALID_HANDLE_VALUE {
-        panic!("NoConsole")
-    }
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// fn clear() {
+//     let handle = get_output_handle();
+//     if handle == winapi::INVALID_HANDLE_VALUE {
+//         panic!("NoConsole")
+//     }
 
-    let screen_buffer = get_buffer_info();
-    let console_size: DWORD = screen_buffer.dwSize.X as u32 * screen_buffer.dwSize.Y as u32;
-    let coord_screen = COORD { X: 0, Y: 0 };
+//     let screen_buffer = get_buffer_info();
+//     let console_size: DWORD = screen_buffer.dwSize.X as u32 * screen_buffer.dwSize.Y as u32;
+//     let coord_screen = COORD { X: 0, Y: 0 };
 
-    let mut amount_chart_written: DWORD = 0;
-    unsafe {
-        kernel32::FillConsoleOutputCharacterW(
-            handle,
-            32 as winapi::WCHAR,
-            console_size,
-            coord_screen,
-            &mut amount_chart_written,
-        );
-    }
-    set_cursor_possition(0, 0);
-}
+//     let mut amount_chart_written: DWORD = 0;
+//     unsafe {
+//         kernel32::FillConsoleOutputCharacterW(
+//             handle,
+//             32 as winapi::WCHAR,
+//             console_size,
+//             coord_screen,
+//             &mut amount_chart_written,
+//         );
+//     }
+//     set_cursor_possition(0, 0);
+// }
 
-#[allow(dead_code)]
-#[cfg(windows)]
-fn set_cursor_possition(y: i16, x: i16) {
-    let handle = get_output_handle();
-    if handle == winapi::INVALID_HANDLE_VALUE {
-        panic!("NoConsole")
-    }
-    unsafe {
-        kernel32::SetConsoleCursorPosition(handle, COORD { X: x, Y: y });
-    }
-}
+// #[allow(dead_code)]
+// #[cfg(windows)]
+// fn set_cursor_possition(y: i16, x: i16) {
+//     let handle = get_output_handle();
+//     if handle == winapi::INVALID_HANDLE_VALUE {
+//         panic!("NoConsole")
+//     }
+//     unsafe {
+//         kernel32::SetConsoleCursorPosition(handle, COORD { X: x, Y: y });
+//     }
+// }
