@@ -1,11 +1,8 @@
 use crate::memory::Memory;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::fs::File;
-use std::io::Write;
-use std::io::{stdin, stdout, Read};
-use std::thread::sleep;
-use std::time::Duration;
+use std::io::Read;
 
 #[cfg(unix)]
 extern crate ncurses;
@@ -16,29 +13,6 @@ type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy)]
 struct Pos(i32, i32);
-
-enum Cell {
-    Robot(RobotStatus),
-    Empty,
-    Scaffold,
-}
-
-impl Cell {
-    fn is_scaffold(&self) -> bool {
-        match self {
-            Cell::Scaffold => true,
-            _ => false,
-        }
-    }
-}
-
-enum RobotStatus {
-    Up,
-    Down,
-    Left,
-    Right,
-    Falling,
-}
 
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
@@ -53,112 +27,29 @@ fn main() -> Result<()> {
 
     let mut context = ExecutionContext::new(&memory);
 
-    execute_program(&mut context);
-    draw_grid(&context.output);
-    let grid = build_grid(&context.output);
-    let x_max = *grid.keys().map(|Pos(x, _)| x).max().unwrap();
-    let y_max = *grid.keys().map(|Pos(_, y)| y).max().unwrap();
-
-    let is_scaffold = |pos| grid[&pos].is_scaffold();
-    let is_intersection = |Pos(x, y)| {
-        x < x_max
-            && x > 0
-            && y < y_max
-            && y > 0
-            && is_scaffold(Pos(x, y))
-            && is_scaffold(Pos(x + 1, y))
-            && is_scaffold(Pos(x - 1, y))
-            && is_scaffold(Pos(x, y + 1))
-            && is_scaffold(Pos(x, y - 1))
+    let mut run = |x: i64, y: i64| {
+        context = ExecutionContext::new(&memory);
+        context.input = vec![x, y];
+        execute_program(&mut context);
+        context.output
     };
 
-    // Find the number of cells that have 4 scaffolds around them
-    let intersections: i32 = grid
-        .iter()
-        .filter(|(pos, _)| is_intersection(**pos))
-        .map(|(Pos(x, y), _)| *x * *y)
-        .sum();
+    let mut hits: HashSet<(i64, i64)> = HashSet::new();
 
-    println!("Result: {}", intersections);
-
-    // Part 2
-    context = ExecutionContext::new(&memory);
-    context.memory[0] = 2;
-    context.input = String::new();
-    context.input += "A,B,B,C,C,A,B,B,C,A\n";
-    context.input += "R,4,R,12,R,10,L,12\n";
-    context.input += "L,12,R,4,R,12\n";
-    context.input += "L,12,L,8,R,10\n";
-    context.input += "y\n";
-
-    loop {
-        match execute_program(&mut context) {
-            ExecutionResult::Exit => break,
-            ExecutionResult::MoreInputNeeded => {
-                print!("Input: ");
-                stdout().flush().unwrap();
-                let mut input = String::new();
-                stdin().read_line(&mut input).unwrap();
-                context.input = input.replace("\r", "");
-                context.input_index = 0;
-            }
+    for y in 0..50 {
+        for x in 0..50 {
+            //println!("Result {}x{}: {}", x, y, run(x, y));
+            print!("{}", if run(x, y) == 1 { '#' } else { '.' });
+            if run(x, y) == 1 {
+                hits.insert((x, y));
+            };
         }
+        println!();
     }
+
+    println!("Result: {}", hits.len());
 
     Ok(())
-}
-
-fn build_grid(chars: &Vec<i32>) -> HashMap<Pos, Cell> {
-    let mut map = HashMap::new();
-    let mut x = 0;
-    let mut y = 0;
-
-    for v in chars {
-        match v {
-            10 => {
-                y += 1;
-                x = 0;
-            }
-            c => {
-                let cell = match *c as u8 as char {
-                    '.' => Cell::Empty,
-                    '#' => Cell::Scaffold,
-                    x => parse_robot_cell(x),
-                };
-
-                map.insert(Pos(x, y), cell);
-                x += 1;
-            }
-        }
-    }
-
-    map
-}
-
-fn parse_robot_cell(ch: char) -> Cell {
-    let status = match ch {
-        '^' => RobotStatus::Up,
-        '>' => RobotStatus::Left,
-        'v' => RobotStatus::Down,
-        '<' => RobotStatus::Right,
-        'X' => RobotStatus::Falling,
-        x => panic!("Unknown char: {}", x),
-    };
-    Cell::Robot(status)
-}
-
-fn draw_grid(chars: &Vec<i32>) {
-    clear();
-
-    for ch in chars {
-        match ch {
-            10 => println(&""),
-            c => print(&format!("{}", *c as u8 as char)),
-        }
-    }
-    println("");
-    refresh();
-    sleep(Duration::from_millis(20));
 }
 
 #[derive(Clone)]
@@ -167,9 +58,9 @@ struct ExecutionContext {
     memory: Memory,
     ended: bool,
     relative_base: usize,
-    input: String,
+    input: Vec<i64>,
     input_index: usize,
-    output: Vec<i32>,
+    output: i64,
 }
 
 impl ExecutionContext {
@@ -179,37 +70,32 @@ impl ExecutionContext {
             memory: memory.clone(),
             ended: false,
             relative_base: 0,
-            output: vec![],
+            output: 0,
             input_index: 0,
-            input: String::new(),
+            input: vec![],
         }
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        let index = self.input_index;
-        self.input_index += 1;
-        let res = self.input.chars().nth(index).map(|x| x as i64);
-
-        //println!("Reading input: {:?}", res);
-        res
+        if self.input_index >= self.input.len() {
+            self.input_index = 0;
+            self.input.clear();
+            None
+        } else {
+            let res = self.input[self.input_index];
+            self.input_index += 1;
+            Some(res)
+        }
     }
 
     fn write_output(&mut self, value: i64) {
         //println!("{}", value);
-        if value > 128 {
-            println!("Result: {}", value);
-            return;
-        }
-        print!("{}", value as u8 as char);
-        self.output.push(value as i32);
-        if value == 10 && self.output[self.output.len() - 2] == 10 {
-            set_cursor_possition(0, 0);
-            sleep(Duration::from_millis(0));
-        }
+        self.output = value;
         //self.output.clear();
     }
 }
 
+#[derive(Debug)]
 enum ExecutionResult {
     MoreInputNeeded,
     Exit,
@@ -431,9 +317,11 @@ use winapi::HANDLE;
 #[cfg(windows)]
 use winapi::WORD;
 
+#[allow(dead_code)]
 #[cfg(windows)]
 static mut CONSOLE_HANDLE: Option<HANDLE> = None;
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn get_output_handle() -> HANDLE {
     unsafe {
@@ -447,6 +335,7 @@ fn get_output_handle() -> HANDLE {
     }
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn get_buffer_info() -> winapi::CONSOLE_SCREEN_BUFFER_INFO {
     let handle = get_output_handle();
@@ -485,6 +374,7 @@ fn clear() {
     ncurses::mv(0, 0);
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn print(msg: &str) {
     print!("{}", msg);
@@ -495,6 +385,7 @@ fn print(msg: &str) {
     ncurses::printw(msg);
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn println(msg: &str) {
     println!("{}", msg);
@@ -506,6 +397,7 @@ fn println(msg: &str) {
     ncurses::addstr("\n");
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn refresh() {}
 
@@ -514,6 +406,7 @@ fn refresh() {
     ncurses::refresh();
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn clear() {
     let handle = get_output_handle();
@@ -538,6 +431,7 @@ fn clear() {
     set_cursor_possition(0, 0);
 }
 
+#[allow(dead_code)]
 #[cfg(windows)]
 fn set_cursor_possition(y: i16, x: i16) {
     let handle = get_output_handle();
