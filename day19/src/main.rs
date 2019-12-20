@@ -36,21 +36,54 @@ fn main() -> Result<()> {
 
     let mut hits: HashSet<(i64, i64)> = HashSet::new();
 
-    for y in 994..1100 {
-        let mut line_hits = 0;
-        print!("{}", y);
-        for x in 788..1100 {
+    let x_min = 700;
+    let x_max = 1100;
+
+    let y_min = 850;
+    let y_max = 1100;
+
+    for y in y_min..y_max {
+        //let mut line_hits = 0;
+        //print!("{}", y);
+        for x in x_min..x_max {
             //println!("Result {}x{}: {}", x, y, run(x, y));
-            print!("{}", if run(x, y) == 1 { '#' } else { '.' });
+            //print!("{}", if run(x, y) == 1 { '#' } else { '.' });
             if run(x, y) == 1 {
                 hits.insert((x, y));
-                line_hits += 1;
+                //line_hits += 1;
             };
         }
-        println!("{}", line_hits);
+        //println!("{}", line_hits);
     }
 
-    println!("Result: {}", hits.len());
+    let mut result: Option<(i64, i64)> = None;
+    for y in y_min..y_max {
+        print!("{}", y);
+        for x in x_min..x_max {
+            if hits.contains(&(x, y)) {
+                if !hits.contains(&(x + 1, y)) {
+                    if hits.contains(&(x - 99, y + 99)) {
+                        if result.is_none() {
+                            result = Some((x, y));
+                        }
+                        print!("!");
+                    } else {
+                        print!("X");
+                    }
+                } else {
+                    print!("#");
+                }
+            } else {
+                print!(".")
+            }
+        }
+
+        println!();
+    }
+
+    let edge = result.unwrap();
+    let origin = (edge.0 - 99, edge.1);
+    println!("Result: {:?}", origin.0 * 10_000 + origin.1);
 
     Ok(())
 }
