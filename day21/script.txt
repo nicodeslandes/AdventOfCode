@@ -1,26 +1,33 @@
+NOT C T
+NOT T J
 NOT B T
-NOT C J
-OR J T
+NOT T T
+AND T J
+NOT A T
+NOT T T
+AND T J
+NOT J J
 AND D J
+NOT H T
+NOT T T
+AND T J
 NOT A T
 OR T J
 RUN
 
-# Program: J = !A + D.!BC.!(!E.!G) = !A + D.(!B + !C).!(!E.!G) = !A + D.(!B.!(!E.!G) + !C.!(!E.!G))
-# Program: J = !A + D.!(!E.!G) = 
- 
-
-NOT E T
-NOT G J
-AND T J
-NOT J J
-AND D J
-NOT A T
-OR T J
-
-
-!B.!(!E.!G) + !C.!(!E.!G)
-
-!(!E.!G).(!B + !C) = (E+G).(!B + !C) = E!B
-
-!(XY).!(UV) = !(XY + UV)
+# Program: J = !A + D.!ABC.H
+NOT C T     T = !C
+NOT T J     J = C
+NOT B T     T = !B
+NOT T T     T = B
+AND T J     J = TJ = BC
+NOT A T     T = !A
+NOT T T     T = A
+AND T J     J = ABC
+NOT J J     J = !ABC
+AND D J     J = D.!ABC
+NOT H T     T = !H
+NOT T T     T = H
+AND T J     J = D.!ABC.H
+NOT A T     T = !A
+OR T J      J = !A + D.!ABC.H
