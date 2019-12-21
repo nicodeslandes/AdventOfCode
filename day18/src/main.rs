@@ -1,5 +1,3 @@
-extern crate num;
-
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
