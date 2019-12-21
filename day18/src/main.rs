@@ -13,6 +13,7 @@ type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 struct Pos(usize, usize);
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum Content {
     Key(char),
@@ -20,6 +21,7 @@ enum Content {
     Passage,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 enum State {
     Wall,
@@ -56,15 +58,15 @@ impl Iterator for NextMoveIterator {
                     }
                     Direction::Right => {
                         self.next_direction = Some(Direction::Bottom);
-                        Some(Pos(x, y - 1))
+                        Some(Pos(x + 1, y))
                     }
                     Direction::Bottom => {
                         self.next_direction = Some(Direction::Left);
-                        Some(Pos(x, y - 1))
+                        Some(Pos(x, y + 1))
                     }
                     Direction::Left => {
                         self.next_direction = None;
-                        Some(Pos(x, y - 1))
+                        Some(Pos(x - 1, y))
                     }
                 }
             }
@@ -72,6 +74,7 @@ impl Iterator for NextMoveIterator {
     }
 }
 
+#[derive(Debug)]
 enum Direction {
     Up,
     Right,
@@ -88,7 +91,7 @@ fn main() -> MainResult<()> {
     let mut state: HashMap<Pos, State> = HashMap::new();
 
     let mut y = 0;
-    let mut current_pos: Pos;
+    let mut current_pos = Pos(0, 0);
     loop {
         let mut line = String::new();
         let read = reader.read_line(&mut line)?;
@@ -109,22 +112,41 @@ fn main() -> MainResult<()> {
                 '@' => {
                     current_pos = pos;
                 }
-                x => (),
+                _ => (),
             }
         }
 
         y += 1;
     }
 
-    println!("Walls: {:?}", walls);
-    println!("State: {:?}", state);
+    //println!("Walls: {:?}", walls);
+    //println!("State: {:?}", state);
     display_grid(&state, |s| match s {
         Some(State::Wall) => String::from("#"),
         Some(State::Visited(v)) => format!("{}", v % 10),
         None | Some(State::None) => " ".to_string(),
     });
 
+    loop {
+        println!("Current pos: {:?}", current_pos);
+        let next_moves = get_neighbouring_positions(current_pos).filter(|p| {
+            let s = state.get(p);
+            match s {
+                Some(State::None) => true,
+                _ => false,
+            }
+        });
+
+        let moves: Vec<_> = next_moves.collect();
+        println!("Moves: {:?}", moves);
+        break;
+    }
+
     Ok(())
+}
+
+fn get_neighbouring_positions(pos: Pos) -> NextMoveIterator {
+    NextMoveIterator::new(pos)
 }
 
 fn display_grid<T>(grid: &HashMap<Pos, T>, display: impl Fn(Option<&T>) -> String) {
@@ -138,43 +160,4 @@ fn display_grid<T>(grid: &HashMap<Pos, T>, display: impl Fn(Option<&T>) -> Strin
 
         println!();
     }
-}
-
-struct Pattern {
-    current_index: usize,
-    repeat_len: usize,
-    pattern_values: Vec<i32>,
-}
-
-impl Pattern {
-    fn new(repeat_len: usize) -> Pattern {
-        Pattern {
-            current_index: 0,
-            repeat_len,
-            pattern_values: vec![0, 1, 0, -1],
-        }
-    }
-}
-
-impl Iterator for Pattern {
-    type Item = i32;
-
-    fn next(&mut self) -> Option<i32> {
-        self.current_index += 1;
-        Some(
-            self.pattern_values[(self.current_index / self.repeat_len) % self.pattern_values.len()],
-        )
-    }
-}
-
-fn calculate_iteration(input: &Vec<i32>) -> Vec<i32> {
-    let mut result = vec![];
-    for i in 0..input.len() {
-        let pattern = Pattern::new(i + 1);
-
-        let r: i32 = input.iter().zip(pattern).map(|(v, p)| v * p).sum();
-        result.push((r % 10).abs());
-    }
-
-    result
 }
