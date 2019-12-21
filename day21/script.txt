@@ -1,15 +1,26 @@
-NOT A J
 NOT B T
-OR T J
-NOT C T
-OR T J
+NOT C J
+OR J T
 AND D J
-WALK
-
-# Program: J = D.!ABC = D.(!A + !B + !C)
-
-NOT A J
-NOT B T
+NOT A T
 OR T J
-NOT C T
+RUN
+
+# Program: J = !A + D.!BC.!(!E.!G) = !A + D.(!B + !C).!(!E.!G) = !A + D.(!B.!(!E.!G) + !C.!(!E.!G))
+# Program: J = !A + D.!(!E.!G) = 
+ 
+
+NOT E T
+NOT G J
+AND T J
+NOT J J
+AND D J
+NOT A T
 OR T J
+
+
+!B.!(!E.!G) + !C.!(!E.!G)
+
+!(!E.!G).(!B + !C) = (E+G).(!B + !C) = E!B
+
+!(XY).!(UV) = !(XY + UV)
