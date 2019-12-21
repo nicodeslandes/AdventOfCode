@@ -10,7 +10,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/target/debug/day21.exe",
             "args": [
-                "input.txt"
+                "input.txt",
+                "script.txt"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

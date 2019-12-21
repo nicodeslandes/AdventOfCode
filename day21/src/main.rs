@@ -17,11 +17,17 @@ struct Pos(i32, i32);
 
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
+    let script_file = env::args().nth(2).expect("Enter a script file name");
 
     let mut instructions = String::new();
     File::open(file_name)?
         .read_to_string(&mut instructions)
         .expect("Failed to read input file");
+
+    let mut script = String::new();
+    File::open(script_file)?
+        .read_to_string(&mut script)
+        .expect("Failed to read script file");
 
     //init();
     let memory = Memory::parse(&instructions);
@@ -33,11 +39,17 @@ fn main() -> Result<()> {
             break;
         }
 
-        let mut input_str = String::new();
-        stdin().read_line(&mut input_str)?;
-        context.input = input_str
+        // let mut input_str = String::new();
+        // stdin().read_line(&mut input_str)?;
+        // context.input = input_str
+        //     .chars()
+        //     .filter(|c| *c != '\r')
+        //     .map(|c| c as i64)
+        //     .collect();
+
+        context.input = script
             .chars()
-            .filter(|c| *c != '\r')
+            .filter(|ch| *ch != '\r')
             .map(|c| c as i64)
             .collect();
     }
@@ -75,19 +87,28 @@ impl ExecutionContext {
             None
         } else {
             let res = self.input[self.input_index];
+            print_char(res);
             self.input_index += 1;
             Some(res)
         }
     }
 
     fn write_output(&mut self, value: i64) {
-        if value == 10 {
-            println!();
+        if value > 255 {
+            println!("Result: {}", value);
         } else {
-            print!("{}", value as u8 as char);
+            print_char(value);
         }
         self.output = value;
         //self.output.clear();
+    }
+}
+
+fn print_char(c: i64) {
+    if c == 10 {
+        println!();
+    } else {
+        print!("{}", c as u8 as char);
     }
 }
 
