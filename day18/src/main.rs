@@ -4,90 +4,140 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
 use std::fs::File;
-use std::io;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::io::Read;
 use std::result::Result;
 
 type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
 
-#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 struct Pos(usize, usize);
 
+#[derive(Debug)]
 enum Content {
     Key(char),
-    Door(char)
+    Door(char),
+    Passage,
+}
+
+#[derive(Copy, Clone, Debug)]
+enum State {
+    Wall,
+    None,
+    Visited(u32),
+}
+
+struct NextMoveIterator {
+    next_direction: Option<Direction>,
+    origin: Pos,
+}
+
+impl NextMoveIterator {
+    fn new(pos: Pos) -> NextMoveIterator {
+        NextMoveIterator {
+            origin: pos,
+            next_direction: Some(Direction::Up),
+        }
+    }
+}
+
+impl Iterator for NextMoveIterator {
+    type Item = Pos;
+
+    fn next(&mut self) -> Option<Pos> {
+        match &self.next_direction {
+            None => None,
+            Some(d) => {
+                let Pos(x, y) = self.origin;
+                match d {
+                    Direction::Up => {
+                        self.next_direction = Some(Direction::Right);
+                        Some(Pos(x, y - 1))
+                    }
+                    Direction::Right => {
+                        self.next_direction = Some(Direction::Bottom);
+                        Some(Pos(x, y - 1))
+                    }
+                    Direction::Bottom => {
+                        self.next_direction = Some(Direction::Left);
+                        Some(Pos(x, y - 1))
+                    }
+                    Direction::Left => {
+                        self.next_direction = None;
+                        Some(Pos(x, y - 1))
+                    }
+                }
+            }
+        }
+    }
+}
+
+enum Direction {
+    Up,
+    Right,
+    Bottom,
+    Left,
 }
 
 fn main() -> MainResult<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
     let file = File::open(file_name)?;
+    let mut reader = BufReader::new(file);
 
     let mut walls: HashSet<Pos> = HashSet::new();
-    let mut state: HashMap<Pos, Content>= HashMap::new();
+    let mut state: HashMap<Pos, State> = HashMap::new();
 
     let mut y = 0;
     let mut current_pos: Pos;
     loop {
         let mut line = String::new();
-        let read = BufReader::new(file).read_line(&mut line)?;
-        if read == 0 {break;}
+        let read = reader.read_line(&mut line)?;
+        if read == 0 {
+            break;
+        }
 
         for (x, ch) in line.chars().enumerate() {
             let pos = Pos(x, y);
             match ch {
-                '#' => walls.insert(Pos(x, y)),
-                '.' => (),
-                '@' => current_pos = pos,
-                x => 
+                '#' => {
+                    walls.insert(pos);
+                    state.insert(pos, State::Wall);
+                }
+                '.' => {
+                    state.insert(pos, State::None);
+                }
+                '@' => {
+                    current_pos = pos;
+                }
+                x => (),
             }
         }
+
+        y += 1;
     }
 
-    let mut input_orig: Vec<i32> = input_orig
-        .chars()
-        .map(|c| c.to_string().parse().unwrap())
-        .collect();
+    println!("Walls: {:?}", walls);
+    println!("State: {:?}", state);
+    display_grid(&state, |s| match s {
+        Some(State::Wall) => String::from("#"),
+        Some(State::Visited(v)) => format!("{}", v % 10),
+        None | Some(State::None) => " ".to_string(),
+    });
 
-    println!("Input: {:?}", input_orig);
-
-    let mut input = input_orig.clone();
-    // for _ in 0..100 {
-    //     input = calculate_iteration(&input);
-    // }
-    println!("Result: {:?}", input);
-
-    input = vec![];
-    for i in 0..10_000 {
-        input.append(&mut input_orig.clone());
-    }
-
-    let offset = (0..7)
-        .map(|i| input[i])
-        .fold(0, |x: i32, i| x.abs() * 10 + i as i32) as usize;
-    println!("Index: {}; total size: {}", offset, input.len());
-
-    for _ in 0..100 {
-        print!(".");
-        io::stdout().flush().unwrap();
-
-        for i in offset..input.len() - 1 {
-            let i = input.len() - 2 - i + offset;
-            input[i] = (input[i] + input[i + 1]) % 10;
-        }
-    }
-
-    // for v in &input {
-    //     print!("{}", v);
-    // }
-
-    println!();
-
-    let result = (0..8).map(|i| input[i + offset]).fold(0, |x, i| x * 10 + i);
-
-    println!("Result: {}", result);
     Ok(())
+}
+
+fn display_grid<T>(grid: &HashMap<Pos, T>, display: impl Fn(Option<&T>) -> String) {
+    let x_max = grid.keys().map(|Pos(x, _)| *x).max().unwrap();
+    let y_max = grid.keys().map(|Pos(_, y)| *y).max().unwrap();
+
+    for y in 0..y_max + 1 {
+        for x in 0..x_max + 1 {
+            print!("{}", display(grid.get(&Pos(x, y))));
+        }
+
+        println!();
+    }
 }
 
 struct Pattern {
