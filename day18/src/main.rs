@@ -16,10 +16,13 @@ struct Pos(usize, usize);
 #[allow(dead_code)]
 #[derive(Debug)]
 enum Content {
+    Wall,
     Key(char),
     Door(char),
     Passage,
 }
+
+type Grid = HashMap<Pos, Content>;
 
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
@@ -88,7 +91,7 @@ fn main() -> MainResult<()> {
     let mut reader = BufReader::new(file);
 
     let mut walls: HashSet<Pos> = HashSet::new();
-    let mut state: HashMap<Pos, State> = HashMap::new();
+    let mut grid: Grid = Grid::new();
 
     let mut y = 0;
     let mut current_pos = Pos(0, 0);
@@ -104,13 +107,20 @@ fn main() -> MainResult<()> {
             match ch {
                 '#' => {
                     walls.insert(pos);
-                    state.insert(pos, State::Wall);
+                    grid.insert(pos, Content::Wall);
                 }
                 '.' => {
-                    state.insert(pos, State::None);
+                    grid.insert(pos, Content::Passage);
                 }
                 '@' => {
                     current_pos = pos;
+                    grid.insert(pos, Content::Passage);
+                }
+                x if x.is_lowercase() => {
+                    grid.insert(pos, Content::Key(x));
+                }
+                x if x.is_uppercase() => {
+                    grid.insert(pos, Content::Door(x));
                 }
                 _ => (),
             }
@@ -121,19 +131,21 @@ fn main() -> MainResult<()> {
 
     //println!("Walls: {:?}", walls);
     //println!("State: {:?}", state);
-    display_grid(&state, |s| match s {
-        Some(State::Wall) => String::from("#"),
-        Some(State::Visited(v)) => format!("{}", v % 10),
-        None | Some(State::None) => " ".to_string(),
+    display_grid(&grid, |s| match s {
+        Some(Content::Wall) => String::from("#"),
+        Some(Content::Key(v)) => format!("{}", v),
+        Some(Content::Door(v)) => format!("{}", v),
+        Some(Content::Passage) => ".".to_string(),
+        _ => " ".to_string(),
     });
 
     loop {
         println!("Current pos: {:?}", current_pos);
         let next_moves = get_neighbouring_positions(current_pos).filter(|p| {
-            let s = state.get(p);
+            let s = grid.get(p);
             match s {
-                Some(State::None) => true,
-                _ => false,
+                Some(Content::Wall) | None => false,
+                _ => true,
             }
         });
 
@@ -143,6 +155,10 @@ fn main() -> MainResult<()> {
     }
 
     Ok(())
+}
+
+fn get_accessible_keys(grid: &HashMap<Pos, State>, pos: Pos) -> Vec<(char, u32)> {
+    return vec![];
 }
 
 fn get_neighbouring_positions(pos: Pos) -> NextMoveIterator {
