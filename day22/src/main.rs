@@ -4,10 +4,7 @@ extern crate regex;
 
 use crate::num::Integer;
 use crate::num::Signed;
-use crate::num::ToPrimitive;
 use generic_matrix::Matrix;
-use num::integer::gcd;
-use num::rational::BigRational;
 use num::BigInt;
 use num::One;
 use num::Zero;
@@ -19,13 +16,13 @@ use std::io::BufReader;
 use std::result::Result;
 
 type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
-const DECK_LENGTH: usize = 119315717514047;
-const CARD_INDEX: usize = 2020;
-const LOOPS: usize = 101741582076661;
+// const DECK_LENGTH: usize = 119315717514047;
+// const CARD_INDEX: usize = 2020;
+// const LOOPS: usize = 101741582076661;
 
-// const DECK_LENGTH: usize = 10007;
-// const CARD_INDEX: usize = 2019;
-// const LOOPS: usize = 1;
+const DECK_LENGTH: usize = 10007;
+const CARD_INDEX: usize = 2019;
+const LOOPS: usize = 1;
 
 #[derive(Debug)]
 enum Operation {
@@ -59,8 +56,12 @@ fn main() -> MainResult<()> {
     let a = shuffle(&operations, BigInt::one()) - b.clone();
     let a = if a.is_negative() { a + DECK_LENGTH } else { a };
 
-    let m = Matrix::from_vec(2, 2, vec![a, BigInt::zero(), b.clone(), BigInt::one()]);
-    println!("M: {:?}", m);
+    let m = Matrix::from_vec(
+        2,
+        2,
+        vec![a.clone(), b.clone(), BigInt::zero(), BigInt::one()],
+    );
+    println!("M: {:?}", format(&m));
 
     let x = Matrix::from_vec(1, 2, vec![CARD_INDEX, 1]);
     let y = x.clone() * m.clone();
@@ -75,34 +76,29 @@ fn main() -> MainResult<()> {
     //       (y    1)
     // (a 0) (ax   0)
     // (b 1) (bx+y 1)  x = 1/a; bx+y = 0 => y = -b/a
+    let inv_a = inverse(&mn[(0, 0)]);
     let mut mn_inv = Matrix::from_vec(
         2,
         2,
         vec![
-            BigRational::new(BigInt::one(), mn[(0, 0)].clone()),
-            BigRational::zero(),
-            BigRational::new(-mn[(0, 1)].clone(), mn[(0, 0)].clone()),
-            BigRational::one(),
+            inv_a.clone(),
+            -mn[(0, 1)].clone() * inv_a,
+            BigInt::zero(),
+            BigInt::one(),
         ],
     );
+    normalize(&mut mn_inv);
+    println!("M^n: {:?}\nM^-n: {:?}", format(&mn), format(&mn_inv));
 
-    //normalize(&mut mn_inv);
-    println!("M^n: {:?}\nM^-n: {:?}", mn.clone(), mn_inv.clone());
-    let x = Matrix::from_fn(1, 2, |i, j| {
-        BigRational::new(BigInt::from(x[(i, j)]), BigInt::one())
-    });
-    let y = x * mn_inv;
+    let mut unit = mn.clone() * mn_inv.clone();
+    normalize(&mut unit);
+    println!("Unit? {:?}", format(&unit));
+
+    let mut y = x * mn_inv;
+    normalize(&mut y);
     let res = y[(0, 0)].clone();
 
-    // We need to inverse res's denominator in Z/pZ
-    // Get Bézout's coefficients
-    let denom = res.denom();
-    let g = BigInt::extended_gcd(&denom, &BigInt::from(DECK_LENGTH));
-    println!("x: {}, y: {}", g.x, g.y);
-
-    //normalize(&mut y);
-    println!("Result: {}", g.x.clone() * res.numer()); // % DECK_LENGTH);
-    println!("Result: {}", (g.x * res.numer()) % DECK_LENGTH);
+    println!("Result: {}", res);
 
     // f2(x) = a.(ax + b) + b = a2.x + (ab + b)
     // f3(x) = a.(a2.x + (ab + b)) + b = a3.x + (a2b + ab + b)
@@ -113,6 +109,29 @@ fn main() -> MainResult<()> {
     Ok(())
 }
 
+fn format(m: &Matrix<BigInt>) -> String {
+    let mut res = String::new();
+    res.push('{');
+    for y in 0..m.column() {
+        for x in 0..m.row() {
+            if (x, y) != (0, 0) {
+                res.push(',');
+            }
+            res.push_str(&m[(x, y)].to_str_radix(10));
+        }
+    }
+
+    res.push('}');
+    res
+}
+
+fn inverse(x: &BigInt) -> BigInt {
+    // Inverse x in Z/pZ
+    // Get Bézout's coefficients
+    let egcd = BigInt::extended_gcd(&x, &BigInt::from(DECK_LENGTH));
+    //println!("x: {}, y: {}", g.x, g.y);
+    egcd.x
+}
 pub fn pow(mut base: Matrix<BigInt>, mut exp: usize) -> Matrix<BigInt> {
     if exp == 0 {
         return Matrix::one(2, 2);
