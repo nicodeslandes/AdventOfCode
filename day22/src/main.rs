@@ -53,36 +53,21 @@ fn main() -> MainResult<()> {
 
     // fn(x) = c.x + d
 
-    let x1 = Matrix::from_vec(1, 2, vec![2, 3]);
-    let m1 = Matrix::from_vec(2, 2, vec![10, 100, 1000, 10_000]);
-    println!("M: {}", format_usize(&m1));
-    println!("x: {}", format_usize(&x1));
-    let y1 = x1.clone() * m1.clone();
-    println!("Result: {}", format_usize(&y1));
-
     let b = shuffle(&operations, BigInt::zero());
     let a = shuffle(&operations, BigInt::one()) - b.clone();
     let a = if a.is_negative() { a + DECK_LENGTH } else { a };
 
-    let r1 = shuffle(&operations, BigInt::from(CARD_INDEX));
-    let r2 = (a.clone() * BigInt::from(CARD_INDEX) + b.clone()) % DECK_LENGTH;
-
-    println!("a: {}, b: {}", a.to_str_radix(10), b.to_str_radix(10));
-    println!("R1: {}", r1.to_str_radix(10));
-    println!("R2: {}", r2.to_str_radix(10));
-
     let m = Matrix::from_vec(
         2,
         2,
-        vec![a.clone(), b.clone(), BigInt::zero(), BigInt::one()],
+        vec![a.clone(), BigInt::zero(), b.clone(), BigInt::one()],
     );
 
     let x = Matrix::from_vec(1, 2, vec![CARD_INDEX, 1]);
     println!("M: {}", format(&m));
     println!("x: {}", format_usize(&x));
-    let y = x.clone() * m.clone();
-
-    println!("Result: {}", y[(0, 0)].clone() % DECK_LENGTH);
+    // let y = x.clone() * m.clone();
+    // println!("Result: {}", y[(0, 0)].clone() % DECK_LENGTH);
 
     // We need to calculate x so that x * M^n = (2020 1), ie x = (2020 1) * (M^n)^-1
 
@@ -98,8 +83,8 @@ fn main() -> MainResult<()> {
         2,
         vec![
             inv_a.clone(),
-            -mn[(0, 1)].clone() * inv_a,
             BigInt::zero(),
+            -mn[(1, 0)].clone() * inv_a,
             BigInt::one(),
         ],
     );
@@ -110,33 +95,21 @@ fn main() -> MainResult<()> {
     normalize(&mut unit);
     println!("Unit? {}", format(&unit));
 
-    println!("x: {}", format_usize(&x));
+    // println!("x: {}", format(&x));
     let mut y = x.clone() * mn_inv.clone();
     normalize(&mut y);
-    println!("y: {}", format(&y));
+    // println!("y: {}", format(&y));
     let res = y[(0, 0)].clone();
-
-    // WHY DON'T THESE 2 RESULTS MATCH ????????
     println!("Result: {}", res);
-    println!(
-        "Result: {}",
-        (CARD_INDEX * mn_inv[(0, 0)].clone() + mn_inv[(0, 1)].clone()) % DECK_LENGTH
-    );
 
-    // f2(x) = a.(ax + b) + b = a2.x + (ab + b)
-    // f3(x) = a.(a2.x + (ab + b)) + b = a3.x + (a2b + ab + b)
-    // f(n + m)(x) = (f(n) o f(m))(x)
-    // f(n^α + m^β) = f(n^α) ο f(m^β)
-
-    //println!("Result: {}", result);
     Ok(())
 }
 
 fn format(m: &Matrix<BigInt>) -> String {
     let mut res = String::new();
     res.push_str("{\n");
-    for y in 0..m.column() {
-        for x in 0..m.row() {
+    for x in 0..m.row() {
+        for y in 0..m.column() {
             res.push_str(&m[(x, y)].to_str_radix(10));
             if (x, y) != (m.row() - 1, m.column() - 1) {
                 res.push(',');
