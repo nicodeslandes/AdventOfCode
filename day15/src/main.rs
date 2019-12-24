@@ -22,6 +22,7 @@ fn main() -> Result<()> {
         .expect("Failed to read input file");
 
     init();
+    clear();
     let memory = Memory::parse(&instructions);
 
     let mut context = ExecutionContext::new(&memory);
@@ -375,7 +376,8 @@ fn get_positions_around(position: (i32, i32)) -> Vec<(i32, i32)> {
 }
 
 fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>) {
-    clear();
+    //clear();
+    set_cursor_possition(0, 0);
 
     let x_min = *grid.keys().map(|(x, _)| x).min().unwrap();
     let x_max = *grid.keys().map(|(x, _)| x).max().unwrap();
@@ -387,20 +389,29 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
             let reverse_y = y_max + (y_min - y);
             if let Some(c) = current {
                 if (x, reverse_y) == c {
-                    print("  X  ");
+                    // print("  X  ");
+                    print("X");
                     continue;
                 }
             }
             let status = grid.get(&(x, reverse_y)).unwrap_or(&CellStatus::Unknown);
             let c = match status {
-                CellStatus::Origin => "  O  ".to_string(),
-                CellStatus::Unknown => "     ".to_string(),
-                CellStatus::Wall => "WWWWW".to_string(),
+                // CellStatus::Origin => "  O  ".to_string(),
+                // CellStatus::Unknown => "     ".to_string(),
+                // CellStatus::Wall => "WWWWW".to_string(),
+                // // CellStatus::Visited(_) => format!("░░░░░"),
+                // // CellStatus::VisitedAll(_) => format!("▒▒▒▒▒"),
+                // CellStatus::Visited(i) => format!(" {:3} ", i),
+                // CellStatus::VisitedAll(i) => format!("-{:3}-", i),
+                // CellStatus::Oxygen => "  O  ".to_string(),
+                CellStatus::Origin => "O".to_string(),
+                CellStatus::Unknown => " ".to_string(),
+                CellStatus::Wall => "█".to_string(),
                 // CellStatus::Visited(_) => format!("░░░░░"),
                 // CellStatus::VisitedAll(_) => format!("▒▒▒▒▒"),
-                CellStatus::Visited(i) => format!(" {:3} ", i),
-                CellStatus::VisitedAll(i) => format!("-{:3}-", i),
-                CellStatus::Oxygen => "  O  ".to_string(),
+                CellStatus::Visited(i) => format!(" "),
+                CellStatus::VisitedAll(i) => format!("▒"),
+                CellStatus::Oxygen => "O".to_string(),
             };
             print(&format!("{}", c));
         }
@@ -409,7 +420,7 @@ fn draw_grid(grid: &HashMap<(i32, i32), CellStatus>, current: Option<(i32, i32)>
 
     println("");
     refresh();
-    sleep(Duration::from_millis(20));
+    //sleep(Duration::from_millis(10));
 }
 
 #[derive(Clone, Copy, Debug)]
