@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Error;
+use std::io::Read;
 use std::ops::Index;
 use std::ops::IndexMut;
 
@@ -12,6 +15,14 @@ impl Memory {
         Memory { _values: values }
     }
 
+    pub fn load_from_file(file_name: &str) -> Result<Memory, Error> {
+        let mut content = String::new();
+        File::open(file_name)?
+            .read_to_string(&mut content)
+            .expect("Failed to read input file");
+
+        Ok(Memory::parse(&content))
+    }
     pub fn parse(string: &str) -> Memory {
         let memory: HashMap<usize, i64> = string
             .split(",")
