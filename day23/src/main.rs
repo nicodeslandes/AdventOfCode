@@ -19,10 +19,6 @@ fn main() -> Result<()> {
     let memory = Memory::load_from_file(&file_name)?;
     let mut computer = Computer::new(&memory);
 
-    loop {
-        if let Exit = computer.execute() {
-            break;
-        }
-    }
+    while computer.execute() != Exit {}
     Ok(())
 }

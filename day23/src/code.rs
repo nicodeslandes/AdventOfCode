@@ -12,85 +12,92 @@ impl Computer {
     }
 
     pub fn execute(&mut self) -> ExecutionResult {
-        let context = &mut self.context;
         // println!("Executing program; ip: {}", context.ip.get());
         loop {
-            match read_op_code(context) {
-                (OpCode::Add, parameter_modes) => {
-                    let (a, b, c) = extract_parameters3(context, parameter_modes);
-                    c.set(a.get(context) + b.get(context), context);
-                }
-                (OpCode::Mult, parameter_modes) => {
-                    let (a, b, c) = extract_parameters3(context, parameter_modes);
-                    c.set(a.get(context) * b.get(context), context);
-                }
-                (OpCode::Input, parameter_modes) => {
-                    match context.read_input() {
-                        Some(value) => {
-                            // println!("Reading input {}", value);
-                            let a = extract_parameter(context, parameter_modes);
-                            a.set(value, context);
-                        }
-                        None => {
-                            //println!("Halting program due to input read; ip: {}", context.ip);
-                            // Revert the reading of the op-code, so we can read it again when the
-                            // thread is resumed
-                            context.ip -= 1;
-                            return ExecutionResult::MoreInputNeeded;
-                        }
+            match self.execute_single_instruction() {
+                ExecutionResult::Executed => (),
+                x => return x,
+            };
+        }
+    }
+
+    pub fn execute_single_instruction(&mut self) -> ExecutionResult {
+        let context = &mut self.context;
+        match read_op_code(context) {
+            (OpCode::Add, parameter_modes) => {
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                c.set(a.get(context) + b.get(context), context);
+            }
+            (OpCode::Mult, parameter_modes) => {
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                c.set(a.get(context) * b.get(context), context);
+            }
+            (OpCode::Input, parameter_modes) => {
+                match context.read_input() {
+                    Some(value) => {
+                        // println!("Reading input {}", value);
+                        let a = extract_parameter(context, parameter_modes);
+                        a.set(value, context);
                     }
-                }
-                (OpCode::Output, parameter_modes) => {
-                    let a = extract_parameter(context, parameter_modes);
-                    let output = a.get(&context);
-                    //println!("Output: {}", output);
-                    context.write_output(output);
-                }
-                (OpCode::JumpIfTrue, parameter_modes) => {
-                    let (a, b) = extract_parameters2(context, parameter_modes);
-                    if a.get(&context) != 0 {
-                        let address = b.get(&context);
-                        jump_to(&mut context.ip, address);
+                    None => {
+                        //println!("Halting program due to input read; ip: {}", context.ip);
+                        // Revert the reading of the op-code, so we can read it again when the
+                        // thread is resumed
+                        context.ip -= 1;
+                        return ExecutionResult::MoreInputNeeded;
                     }
-                }
-                (OpCode::JumpIfFalse, parameter_modes) => {
-                    let (a, b) = extract_parameters2(context, parameter_modes);
-                    if a.get(&context) == 0 {
-                        let address = b.get(&context);
-                        jump_to(&mut context.ip, address);
-                    }
-                }
-                (OpCode::LessThan, parameter_modes) => {
-                    let (a, b, c) = extract_parameters3(context, parameter_modes);
-                    let value = if a.get(&context) < b.get(&context) {
-                        1
-                    } else {
-                        0
-                    };
-                    c.set(value, context);
-                }
-                (OpCode::Equals, parameter_modes) => {
-                    let (a, b, c) = extract_parameters3(context, parameter_modes);
-                    let value = if a.get(&context) == b.get(&context) {
-                        1
-                    } else {
-                        0
-                    };
-                    c.set(value, context);
-                }
-                (OpCode::AdjustRelativeBase, parameter_modes) => {
-                    let a = extract_parameter(context, parameter_modes);
-                    let adjustment = a.get(&context);
-                    context.relative_base = (context.relative_base as i64 + adjustment) as usize;
-                }
-                (OpCode::Exit, _) => {
-                    context.ended = true;
-                    return ExecutionResult::Exit;
                 }
             }
+            (OpCode::Output, parameter_modes) => {
+                let a = extract_parameter(context, parameter_modes);
+                let output = a.get(&context);
+                //println!("Output: {}", output);
+                context.write_output(output);
+            }
+            (OpCode::JumpIfTrue, parameter_modes) => {
+                let (a, b) = extract_parameters2(context, parameter_modes);
+                if a.get(&context) != 0 {
+                    let address = b.get(&context);
+                    jump_to(&mut context.ip, address);
+                }
+            }
+            (OpCode::JumpIfFalse, parameter_modes) => {
+                let (a, b) = extract_parameters2(context, parameter_modes);
+                if a.get(&context) == 0 {
+                    let address = b.get(&context);
+                    jump_to(&mut context.ip, address);
+                }
+            }
+            (OpCode::LessThan, parameter_modes) => {
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                let value = if a.get(&context) < b.get(&context) {
+                    1
+                } else {
+                    0
+                };
+                c.set(value, context);
+            }
+            (OpCode::Equals, parameter_modes) => {
+                let (a, b, c) = extract_parameters3(context, parameter_modes);
+                let value = if a.get(&context) == b.get(&context) {
+                    1
+                } else {
+                    0
+                };
+                c.set(value, context);
+            }
+            (OpCode::AdjustRelativeBase, parameter_modes) => {
+                let a = extract_parameter(context, parameter_modes);
+                let adjustment = a.get(&context);
+                context.relative_base = (context.relative_base as i64 + adjustment) as usize;
+            }
+            (OpCode::Exit, _) => {
+                context.ended = true;
+                return ExecutionResult::Exit;
+            }
+        };
 
-            // println!("Values: {:?}", memory);
-        }
+        return ExecutionResult::Executed;
     }
 }
 
@@ -163,8 +170,9 @@ fn print_char(c: i64) {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ExecutionResult {
+    Executed,
     MoreInputNeeded,
     Exit,
 }
