@@ -1,21 +1,29 @@
 use crate::memory::Memory;
-use std::collections::VecDeque;
 
 pub struct Computer {
     context: ExecutionContext,
-    input: VecDeque<i64>,
+    input: Box<dyn FnMut() -> Option<i64>>,
+    output: Box<dyn FnMut(i64) -> ()>,
 }
 
 impl Computer {
-    pub fn new(memory: &Memory) -> Computer {
+    pub fn new(
+        memory: &Memory,
+        input: Box<dyn FnMut() -> Option<i64>>,
+        output: Box<dyn FnMut(i64) -> ()>,
+    ) -> Computer {
         Computer {
             context: ExecutionContext::new(memory),
-            input: VecDeque::new(),
+            input,
+            output,
         }
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        self.input.pop_back()
+        (*self.input)()
+    }
+    fn write_output(&mut self, value: i64) {
+        (*self.output)(value);
     }
 
     pub fn execute(&mut self) -> ExecutionResult {
@@ -63,8 +71,7 @@ impl Computer {
             (OpCode::Output, parameter_modes) => {
                 let a = self.context.extract_parameter(parameter_modes);
                 let output = a.get(&self.context);
-                //println!("Output: {}", output);
-                self.context.write_output(output);
+                self.write_output(output);
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
                 let (a, b) = self.context.extract_parameters2(parameter_modes);
@@ -151,16 +158,6 @@ impl ExecutionContext {
         }
     }
 
-    fn write_output(&mut self, value: i64) {
-        if value > 255 {
-            println!("Result: {}", value);
-        } else {
-            print_char(value);
-        }
-        self.output = value;
-        //self.output.clear();
-    }
-
     fn jump_to(&mut self, address: i64) {
         self.ip = address as usize;
     }
@@ -228,14 +225,6 @@ impl ExecutionContext {
                 Parameter::Reference(address)
             }
         }
-    }
-}
-
-fn print_char(c: i64) {
-    if c == 10 {
-        println!();
-    } else {
-        print!("{}", c as u8 as char);
     }
 }
 

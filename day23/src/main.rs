@@ -17,7 +17,11 @@ fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
 
     let memory = Memory::load_from_file(&file_name)?;
-    let mut computer = Computer::new(&memory);
+    let input = || None;
+    let output = |x| {
+        println!("Output: {}", x);
+    };
+    let mut computer = Computer::new(&memory, Box::new(input), Box::new(output));
 
     while computer.execute() != Exit {}
     Ok(())
