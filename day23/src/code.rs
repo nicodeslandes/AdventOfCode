@@ -1,17 +1,17 @@
 use crate::memory::Memory;
 
-pub struct Computer {
+pub struct Computer<'a> {
     context: ExecutionContext,
-    input: Box<dyn FnMut() -> Option<i64>>,
-    output: Box<dyn FnMut(i64) -> ()>,
+    input: &'a dyn Fn() -> Option<i64>,
+    output: &'a dyn Fn(i64) -> (),
 }
 
-impl Computer {
+impl<'a> Computer<'a> {
     pub fn new(
         memory: &Memory,
-        input: Box<dyn FnMut() -> Option<i64>>,
-        output: Box<dyn FnMut(i64) -> ()>,
-    ) -> Computer {
+        input: &'a dyn Fn() -> Option<i64>,
+        output: &'a dyn Fn(i64) -> (),
+    ) -> Computer<'a> {
         Computer {
             context: ExecutionContext::new(memory),
             input,
@@ -27,13 +27,16 @@ impl Computer {
     }
 
     pub fn execute(&mut self) -> ExecutionResult {
-        // println!("Executing program; ip: {}", context.ip.get());
-        loop {
+        //println!("Executing program; ip: {}", self.context.ip);
+        let result = loop {
             match self.execute_single_instruction() {
                 ExecutionResult::Executed => (),
-                x => return x,
+                x => break x,
             };
-        }
+        };
+
+        //println!("Result: {:?}", result);
+        result
     }
 
     pub fn execute_single_instruction(&mut self) -> ExecutionResult {

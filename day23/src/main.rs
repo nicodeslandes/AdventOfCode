@@ -1,9 +1,8 @@
 use crate::code::{Computer, ExecutionResult::*};
 use crate::memory::Memory;
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::env;
-use std::rc::Rc;
 
 #[cfg(unix)]
 extern crate ncurses;
@@ -22,20 +21,18 @@ fn main() -> Result<()> {
     let memory = Memory::load_from_file(&file_name)?;
 
     let values: VecDeque<i64> = VecDeque::new();
-    let values = Rc::new(Cell::new(values));
-    //let v = Rc::get_mut(values.get_mut()).unwrap();
+    let values = RefCell::new(values);
 
     let input = || {
-        let v = values.get_mut();
-        v.pop_back()
+        //println!("Reading input");
+        values.borrow_mut().pop_back()
     };
 
     let output = |x| {
         println!("Output: {}", x);
-        let v = values.get_mut();
-        v.push_front(x);
+        values.borrow_mut().push_front(x);
     };
-    let mut computer = Computer::new(&memory, Box::new(input), Box::new(output));
+    let mut computer = Computer::new(&memory, &input, &output);
 
     while computer.execute() != Exit {}
     Ok(())
