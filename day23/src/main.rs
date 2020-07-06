@@ -64,7 +64,7 @@ fn main() -> Result<()> {
         switch.borrow().write(i, i as i64);
         computers.push(Computer::new(
             i,
-            &memory,
+            memory.clone(),
             Box::new(move || {
                 let s = r1.borrow();
                 s.read(i as usize)
@@ -80,8 +80,8 @@ fn main() -> Result<()> {
     while completed.len() < COMPUTER_COUNT {
         for computer in computers.iter_mut() {
             if !completed.contains(&computer.id()) {
-                println!("Computer {} is running...", computer.id());
-                if computer.execute() == Exit {
+                //println!("Computer {} is running...", computer.id());
+                if computer.execute_single_instruction() == Exit {
                     println!("Computer {} has exited", computer.id());
                     completed.insert(computer.id());
                 }

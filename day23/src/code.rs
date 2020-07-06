@@ -10,7 +10,7 @@ pub struct Computer {
 impl<'a> Computer {
     pub fn new(
         id: usize,
-        memory: &Memory,
+        memory: Memory,
         input: Box<dyn Fn() -> Option<i64>>,
         output: Box<dyn Fn(i64, i64) -> ()>,
     ) -> Computer {
@@ -27,13 +27,16 @@ impl<'a> Computer {
     }
 
     fn read_input(&mut self) -> Option<i64> {
-        println!("Computer {} is reading its input", self.id);
+        //println!("Computer {} is reading its input", self.id);
         let read = (*self.input)();
-        println!("Computer {} read result: {:?}", self.id, read);
-        read
+        //println!("Computer {} read result: {:?}", self.id, read);
+        read.or(Some(-1))
     }
     fn write_output(&mut self, addr: i64, value: i64) {
-        println!("Computer {} is writing {} to address {}", self.id, value, addr);
+        //println!(
+        //    "Computer {} is writing {} to address {}",
+        //    self.id, value, addr
+        //);
         (*self.output)(addr, value);
     }
 
@@ -171,10 +174,10 @@ struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    fn new(memory: &Memory) -> ExecutionContext {
+    fn new(memory: Memory) -> ExecutionContext {
         ExecutionContext {
             ip: 0,
-            memory: memory.clone(),
+            memory,
             ended: false,
             relative_base: 0,
             output: 0,
