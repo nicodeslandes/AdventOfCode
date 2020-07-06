@@ -1,6 +1,7 @@
 use crate::code::ExecutionResult::Exit;
 use crate::code::*;
 use crate::memory::Memory;
+use crate::switch::Packet;
 use crate::switch::Switch;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -50,6 +51,17 @@ struct Pos(i32, i32);
 //     fn write_input(x: i64) -> () {}
 // }
 
+enum InputStatus {
+    WaitingForFirstRead,
+    Idle,
+    ReadingPacket(Packet),
+}
+
+enum OutputStatus {
+    Idle,
+    WritingPacket(i64),
+}
+
 fn main() -> Result<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
 
@@ -61,17 +73,44 @@ fn main() -> Result<()> {
     for i in 0..COMPUTER_COUNT {
         let r1 = switch.clone();
         let r2 = switch.clone();
-        switch.borrow().write(i, i as i64);
+        let input_status = RefCell::new(InputStatus::WaitingForFirstRead);
+        let output_status = RefCell::new(OutputStatus::Idle);
+
         computers.push(Computer::new(
             i,
             memory.clone(),
             Box::new(move || {
-                let s = r1.borrow();
-                s.read(i as usize)
+                let mut status = input_status.borrow_mut();
+                match *status {
+                    InputStatus::WaitingForFirstRead => {
+                        *status = InputStatus::Idle;
+                        Some(i as i64)
+                    }
+                    InputStatus::Idle => match r1.borrow().read(i as usize) {
+                        Some(packet) => {
+                            *status = InputStatus::ReadingPacket(packet);
+                            Some(packet.x)
+                        }
+                        None => None,
+                    },
+                    InputStatus::ReadingPacket(packet) => {
+                        *status = InputStatus::Idle;
+                        Some(packet.y)
+                    }
+                }
             }),
             Box::new(move |addr, data| {
-                let s = r2.borrow();
-                s.write(addr as usize, data);
+                let mut status = output_status.borrow_mut();
+                match *status {
+                    OutputStatus::Idle => {
+                        *status = OutputStatus::WritingPacket(data);
+                    }
+                    OutputStatus::WritingPacket(x) => {
+                        *status = OutputStatus::Idle;
+                        let packet = Packet::new(x, data);
+                        r2.borrow().write(addr as usize, packet);
+                    }
+                }
             }),
         ));
     }

@@ -40,18 +40,18 @@ impl<'a> Computer {
         (*self.output)(addr, value);
     }
 
-    pub fn execute(&mut self) -> ExecutionResult {
-        //println!("Executing program; ip: {}", self.context.ip);
-        let result = loop {
-            match self.execute_single_instruction() {
-                ExecutionResult::Executed => (),
-                x => break x,
-            };
-        };
+    // pub fn execute(&mut self) -> ExecutionResult {
+    //     //println!("Executing program; ip: {}", self.context.ip);
+    //     let result = loop {
+    //         match self.execute_single_instruction() {
+    //             ExecutionResult::Executed => (),
+    //             x => break x,
+    //         };
+    //     };
 
-        //println!("Result: {:?}", result);
-        result
-    }
+    //     //println!("Result: {:?}", result);
+    //     result
+    // }
 
     pub fn execute_single_instruction(&mut self) -> ExecutionResult {
         match self.context.read_op_code() {
