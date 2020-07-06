@@ -1,29 +1,40 @@
 use crate::memory::Memory;
 
-pub struct Computer<'a> {
+pub struct Computer {
+    id: usize,
     context: ExecutionContext,
-    input: &'a dyn Fn() -> Option<i64>,
-    output: &'a dyn Fn(i64) -> (),
+    input: Box<dyn Fn() -> Option<i64>>,
+    output: Box<dyn Fn(i64, i64) -> ()>,
 }
 
-impl<'a> Computer<'a> {
+impl<'a> Computer {
     pub fn new(
+        id: usize,
         memory: &Memory,
-        input: &'a dyn Fn() -> Option<i64>,
-        output: &'a dyn Fn(i64) -> (),
-    ) -> Computer<'a> {
+        input: Box<dyn Fn() -> Option<i64>>,
+        output: Box<dyn Fn(i64, i64) -> ()>,
+    ) -> Computer {
         Computer {
+            id,
             context: ExecutionContext::new(memory),
             input,
             output,
         }
     }
 
-    fn read_input(&mut self) -> Option<i64> {
-        (*self.input)()
+    pub fn id(&self) -> usize {
+        self.id
     }
-    fn write_output(&mut self, value: i64) {
-        (*self.output)(value);
+
+    fn read_input(&mut self) -> Option<i64> {
+        println!("Computer {} is reading its input", self.id);
+        let read = (*self.input)();
+        println!("Computer {} read result: {:?}", self.id, read);
+        read
+    }
+    fn write_output(&mut self, addr: i64, value: i64) {
+        println!("Computer {} is writing {} to address {}", self.id, value, addr);
+        (*self.output)(addr, value);
     }
 
     pub fn execute(&mut self) -> ExecutionResult {
@@ -74,7 +85,17 @@ impl<'a> Computer<'a> {
             (OpCode::Output, parameter_modes) => {
                 let a = self.context.extract_parameter(parameter_modes);
                 let output = a.get(&self.context);
-                self.write_output(output);
+                let pending_outputs = &mut self.context.pending_outputs;
+                pending_outputs.push(output);
+                if pending_outputs.len() >= 3 {
+                    let addr = pending_outputs[0];
+                    let x = pending_outputs[1];
+                    let y = pending_outputs[2];
+                    pending_outputs.clear();
+
+                    self.write_output(addr, x);
+                    self.write_output(addr, y);
+                }
             }
             (OpCode::JumpIfTrue, parameter_modes) => {
                 let (a, b) = self.context.extract_parameters2(parameter_modes);
@@ -146,6 +167,7 @@ struct ExecutionContext {
     input: Vec<i64>,
     input_index: usize,
     output: i64,
+    pending_outputs: Vec<i64>,
 }
 
 impl ExecutionContext {
@@ -158,6 +180,7 @@ impl ExecutionContext {
             output: 0,
             input_index: 0,
             input: vec![],
+            pending_outputs: vec![],
         }
     }
 
