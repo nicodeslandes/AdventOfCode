@@ -116,14 +116,42 @@ fn main() -> Result<()> {
     }
 
     let mut completed: HashSet<usize> = HashSet::new();
+    let mut previous_nat_packet: Option<Packet> = None;
+
     while completed.len() < COMPUTER_COUNT {
-        for computer in computers.iter_mut() {
-            if !completed.contains(&computer.id()) {
-                //println!("Computer {} is running...", computer.id());
-                if computer.execute_single_instruction() == Exit {
-                    println!("Computer {} has exited", computer.id());
-                    completed.insert(computer.id());
+        let switch_activity = switch.borrow().get_activity();
+        let switch_was_quiet = switch.borrow().is_quiet();
+
+        // TODO: CHEATING!!!
+        // We should detect instead that all computers have been attempting to read without writing anything
+        for _ in 0..1000 {
+            for computer in computers.iter_mut() {
+                if !completed.contains(&computer.id()) {
+                    //println!("Computer {} is running...", computer.id());
+                    if computer.execute_single_instruction() == Exit {
+                        println!("Computer {} has exited", computer.id());
+                        completed.insert(computer.id());
+                    }
                 }
+            }
+        }
+
+        let switch = switch.borrow();
+        if switch_activity == switch.get_activity() && switch_was_quiet && switch.is_quiet() {
+            // No activity detected
+            // println!("Writing nat packet");
+            if let Some(packet) = switch.pop_nat_packet() {
+                println!("Writing NAT Packet {}", packet);
+                switch.write(0, packet);
+
+                if let Some(p) = previous_nat_packet {
+                    if p.y == packet.y {
+                        println!("Found it!! Y = {}", p.y);
+                        break;
+                    }
+                }
+
+                previous_nat_packet = Some(packet);
             }
         }
     }
