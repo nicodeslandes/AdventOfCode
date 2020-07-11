@@ -180,11 +180,14 @@ fn main() -> MainResult<()> {
             continue;
         }
         // Now we can choose to continue with any of the reachable keys
-        for (k, (position, distance)) in keys_distances {
+        let mut ordered_keys: Vec<_> = keys_distances.keys().collect();
+        ordered_keys.sort_by_key(|k| u32::max_value() - keys_distances[k].1);
+        for &key in ordered_keys {
+            let (position, distance) = keys_distances[&key];
             let total_distance = distance + memento.distance_from_origin;
             if total_distance < min_total_distance {
                 let mut memento_keys = keys.clone();
-                memento_keys.insert(k);
+                memento_keys.insert(key);
                 mementos.push(Memento::new(memento_keys, position, total_distance))
             }
         }
