@@ -29,10 +29,12 @@ enum State {
     Blocked,
     None,
     Visited(u32),
-    VisitedAll(u32),
+    Key(char),
+    Door(char),
 }
 
 impl State {
+    #[allow(dead_code)]
     fn is_blocked(&self) -> bool {
         match *self {
             State::Blocked => true,
@@ -40,9 +42,10 @@ impl State {
         }
     }
 
+    #[allow(dead_code)]
     fn get_distance(&self) -> Option<u32> {
         match *self {
-            State::Visited(d) | State::VisitedAll(d) => Some(d),
+            State::Visited(d) => Some(d),
             _ => None,
         }
     }
@@ -153,7 +156,7 @@ fn main() -> MainResult<()> {
 
     //println!("Walls: {:?}", walls);
     //println!("State: {:?}", state);
-    display_grid(&grid, current_pos, |s| match s {
+    display_grid(&grid, Some(current_pos), |s| match s {
         Some(Content::Wall) => String::from("#"),
         Some(Content::Key(v)) => format!("{}", v),
         Some(Content::Door(v)) => format!("{}", v),
@@ -169,15 +172,17 @@ fn main() -> MainResult<()> {
         }
     };
 
-    for _ in 0..2 {
+    let keys: HashSet<Key> = HashSet::new();
+    println!("Keys: {:?}", keys);
+    for _ in 0..1 {
         println!("Current pos: {:?}", current_pos);
         let next_moves = get_neighbouring_positions(current_pos).filter(not_wall_position);
 
         let moves: Vec<_> = next_moves.collect();
         println!("Moves: {:?}", moves);
 
-        let keys: HashSet<Key> = HashSet::new();
-        get_reachable_keys(&grid, keys, current_pos);
+        let keys_distances = get_reachable_keys(&grid, &keys, current_pos);
+        println!("Key distances: {:?}", keys_distances);
     }
 
     Ok(())
@@ -185,29 +190,42 @@ fn main() -> MainResult<()> {
 
 type Key = char;
 
-fn get_reachable_keys(grid: &ContentGrid, keys: HashSet<Key>, pos: Pos) -> HashMap<Key, i32> {
-    let mut result: HashMap<Key, i32> = HashMap::new();
-    visit_all_from(grid, keys, pos, |key: Key, distance: i32| {
-        result.insert(key, distance);
+fn get_reachable_keys(grid: &ContentGrid, keys: &HashSet<Key>, pos: Pos) -> HashMap<Key, u32> {
+    let mut result: HashMap<Key, u32> = HashMap::new();
+    visit_all_from(grid, keys, pos, |key: Key, distance: u32| {
+        let existing_distance = result.get(&key);
+        match existing_distance {
+            Some(&d) if d > distance => (),
+            _ => {
+                result.insert(key, distance);
+            }
+        }
     });
 
     result
 }
 
+#[derive(Debug)]
 struct Cursor {
     position: Pos,
     distance: u32,
 }
 
+impl Cursor {
+    fn new(pos: Pos, distance: u32) -> Cursor {
+        Cursor {
+            position: pos,
+            distance,
+        }
+    }
+}
+
 fn visit_all_from(
     grid: &ContentGrid,
-    keys: HashSet<Key>,
+    keys: &HashSet<Key>,
     from_pos: Pos,
-    on_key_reached: impl FnMut(Key, i32) -> (),
+    mut on_key_reached: impl FnMut(Key, u32) -> (),
 ) {
-    let mut position = from_pos;
-    let mut distance = 0;
-
     let mut state: Grid<State> = grid
         .iter()
         .map(|(k, v)| {
@@ -215,62 +233,65 @@ fn visit_all_from(
                 *k,
                 match v {
                     Content::Wall => State::Blocked,
-                    Content::Door(d) if !keys.contains(d) => State::Blocked,
+                    Content::Key(k) => State::Key(*k),
+                    Content::Door(d) => State::Door(*d),
+                    // Content::Door(d) if !keys.contains(d) => State::Blocked,
                     _ => State::None,
                 },
             )
         })
         .collect();
 
-    state.insert(position, State::VisitedAll(0));
+    state.insert(from_pos, State::Visited(0));
     let mut cursors = vec![Cursor {
         position: from_pos,
         distance: 0,
     }];
 
-    loop {
-        print_state(&state, position);
-        thread::sleep(Duration::from_millis(200));
+    clear();
+    while !cursors.is_empty() {
+        set_cursor_position(0, 0);
+        print_state(&state, None);
+        // for c in &cursors {
+        //     println!("{:?}", c);
+        // }
 
-        let current_distance = state[&position].get_distance().unwrap();
-        let alternative_moves: Vec<_> = get_neighbouring_positions(position)
-            .filter(|p| match state[p] {
-                State::None => true,
-                State::Visited(d) | State::VisitedAll(d) => d > current_distance + 1,
-                _ => false,
-            })
-            .collect();
+        // for _ in 0..10 {
+        //     println!("                                                      ");
+        // }
 
-        println!("Alternative moves: {:?}", alternative_moves);
-        if alternative_moves.is_empty() {
-            break;
-        }
+        //thread::sleep(Duration::from_millis(10));
 
-        let single_alternative = alternative_moves.len() == 1;
-        for neighbour in alternative_moves {
-            match state[&neighbour] {
-                State::None | State::Visited(_) | State::VisitedAll(_) => {
-                    position = neighbour;
-                    let new_state = if single_alternative {
-                        State::VisitedAll(distance + 1)
-                    } else {
-                        State::Visited(distance + 1)
-                    };
-                    state.insert(position, new_state);
-                    break;
-                }
-                _ => (),
+        let mut next_cursors = vec![];
+        for c in &cursors {
+            let next_moves: Vec<_> = get_neighbouring_positions(c.position)
+                .filter(|p| match state[p] {
+                    State::None => true,
+                    State::Key(k) => {
+                        on_key_reached(k, c.distance + 1);
+                        false
+                    }
+                    State::Visited(d) => d > c.distance + 1,
+                    _ => false,
+                })
+                .collect();
+            for m in next_moves {
+                state.insert(m, State::Visited(c.distance + 1));
+                next_cursors.push(Cursor::new(m, c.distance + 1));
             }
         }
+
+        cursors = next_cursors;
     }
 }
 
-fn print_state(state_grid: &Grid<State>, current_pos: Pos) {
+fn print_state(state_grid: &Grid<State>, current_pos: Option<Pos>) {
     display_grid(state_grid, current_pos, |s| match s {
-        Some(State::None) | None => String::from(" "),
-        Some(State::Visited(d)) => format!("{}", d % 10),
-        Some(State::VisitedAll(d)) => format!("{}", d % 10),
-        Some(State::Blocked) => String::from("█"),
+        Some(State::None) | None => String::from("  "),
+        Some(State::Visited(d)) => format!("{} ", d % 10),
+        Some(State::Key(k)) => format!("{} ", k),
+        Some(State::Door(k)) => format!("{} ", k),
+        Some(State::Blocked) => String::from("██"),
     });
 }
 
@@ -278,18 +299,115 @@ fn get_neighbouring_positions(pos: Pos) -> NextMoveIterator {
     NextMoveIterator::new(pos)
 }
 
-fn display_grid<T>(grid: &Grid<T>, current_pos: Pos, display: impl Fn(Option<&T>) -> String) {
+fn display_grid<T>(
+    grid: &Grid<T>,
+    current_pos: Option<Pos>,
+    display: impl Fn(Option<&T>) -> String,
+) {
     let x_max = grid.keys().map(|Pos(x, _)| *x).max().unwrap();
     let y_max = grid.keys().map(|Pos(_, y)| *y).max().unwrap();
 
     for y in 0..y_max + 1 {
         for x in 0..x_max + 1 {
-            if Pos(x, y) == current_pos {
-                print!("@");
+            if let Some(p) = current_pos {
+                if p == Pos(x, y) {
+                    print!("@");
+                }
             }
             print!("{}", display(grid.get(&Pos(x, y))));
         }
 
         println!();
+    }
+}
+
+extern crate kernel32;
+extern crate winapi;
+
+#[cfg(windows)]
+use winapi::wincon::CONSOLE_SCREEN_BUFFER_INFO;
+#[cfg(windows)]
+use winapi::wincon::COORD;
+#[cfg(windows)]
+use winapi::wincon::SMALL_RECT;
+#[cfg(windows)]
+use winapi::DWORD;
+#[cfg(windows)]
+use winapi::HANDLE;
+#[cfg(windows)]
+use winapi::WORD;
+
+#[cfg(windows)]
+static mut CONSOLE_HANDLE: Option<HANDLE> = None;
+
+#[cfg(windows)]
+fn get_output_handle() -> HANDLE {
+    unsafe {
+        if let Some(handle) = CONSOLE_HANDLE {
+            return handle;
+        } else {
+            let handle = kernel32::GetStdHandle(winapi::STD_OUTPUT_HANDLE);
+            CONSOLE_HANDLE = Some(handle);
+            return handle;
+        }
+    }
+}
+
+#[cfg(windows)]
+fn get_buffer_info() -> winapi::CONSOLE_SCREEN_BUFFER_INFO {
+    let handle = get_output_handle();
+    if handle == winapi::INVALID_HANDLE_VALUE {
+        panic!("NoConsole")
+    }
+    let mut buffer = CONSOLE_SCREEN_BUFFER_INFO {
+        dwSize: COORD { X: 0, Y: 0 },
+        dwCursorPosition: COORD { X: 0, Y: 0 },
+        wAttributes: 0 as WORD,
+        srWindow: SMALL_RECT {
+            Left: 0,
+            Top: 0,
+            Right: 0,
+            Bottom: 0,
+        },
+        dwMaximumWindowSize: COORD { X: 0, Y: 0 },
+    };
+    unsafe {
+        kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer);
+    }
+    buffer
+}
+
+#[cfg(windows)]
+fn clear() {
+    let handle = get_output_handle();
+    if handle == winapi::INVALID_HANDLE_VALUE {
+        panic!("NoConsole")
+    }
+
+    let screen_buffer = get_buffer_info();
+    let console_size: DWORD = screen_buffer.dwSize.X as u32 * screen_buffer.dwSize.Y as u32;
+    let coord_screen = COORD { X: 0, Y: 0 };
+
+    let mut amount_chart_written: DWORD = 0;
+    unsafe {
+        kernel32::FillConsoleOutputCharacterW(
+            handle,
+            32 as winapi::WCHAR,
+            console_size,
+            coord_screen,
+            &mut amount_chart_written,
+        );
+    }
+    set_cursor_position(0, 0);
+}
+
+#[cfg(windows)]
+fn set_cursor_position(y: i16, x: i16) {
+    let handle = get_output_handle();
+    if handle == winapi::INVALID_HANDLE_VALUE {
+        panic!("NoConsole")
+    }
+    unsafe {
+        kernel32::SetConsoleCursorPosition(handle, COORD { X: x, Y: y });
     }
 }
