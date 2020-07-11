@@ -1,15 +1,24 @@
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
+use crate::iterators::*;
+use linked_hash_set::LinkedHashSet;
+use log::*;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::result::Result;
-use std::{env, thread, time::Duration};
+
+mod iterators;
 
 type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
-struct Pos(usize, usize);
+pub struct Pos(usize, usize);
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -51,57 +60,6 @@ impl State {
     }
 }
 
-struct NextMoveIterator {
-    next_direction: Option<Direction>,
-    origin: Pos,
-}
-
-impl NextMoveIterator {
-    fn new(pos: Pos) -> NextMoveIterator {
-        NextMoveIterator {
-            origin: pos,
-            next_direction: Some(Direction::Up),
-        }
-    }
-}
-
-impl Iterator for NextMoveIterator {
-    type Item = Pos;
-
-    fn next(&mut self) -> Option<Pos> {
-        loop {
-            match &self.next_direction {
-                None => break None,
-                Some(d) => {
-                    let Pos(x, y) = self.origin;
-                    match d {
-                        Direction::Up => {
-                            self.next_direction = Some(Direction::Right);
-                            if y > 0 {
-                                break Some(Pos(x, y - 1));
-                            }
-                        }
-                        Direction::Right => {
-                            self.next_direction = Some(Direction::Bottom);
-                            break Some(Pos(x + 1, y));
-                        }
-                        Direction::Bottom => {
-                            self.next_direction = Some(Direction::Left);
-                            break Some(Pos(x, y + 1));
-                        }
-                        Direction::Left => {
-                            self.next_direction = None;
-                            if x > 0 {
-                                break Some(Pos(x - 1, y));
-                            }
-                        }
-                    };
-                }
-            }
-        }
-    }
-}
-
 #[derive(Debug)]
 enum Direction {
     Up,
@@ -111,6 +69,8 @@ enum Direction {
 }
 
 fn main() -> MainResult<()> {
+    simple_logger::init().unwrap();
+    log::set_max_level(LevelFilter::Info);
     let file_name = env::args().nth(1).expect("Enter a file name");
     let file = File::open(file_name)?;
     let mut reader = BufReader::new(file);
@@ -154,15 +114,17 @@ fn main() -> MainResult<()> {
         y += 1;
     }
 
+    let key_count = count_keys(&grid);
+
     //println!("Walls: {:?}", walls);
     //println!("State: {:?}", state);
-    display_grid(&grid, Some(current_pos), |s| match s {
-        Some(Content::Wall) => String::from("#"),
-        Some(Content::Key(v)) => format!("{}", v),
-        Some(Content::Door(v)) => format!("{}", v),
-        Some(Content::Passage) => ".".to_string(),
-        _ => " ".to_string(),
-    });
+    // display_grid(&grid, Some(current_pos), |s| match s {
+    //     Some(Content::Wall) => String::from("#"),
+    //     Some(Content::Key(v)) => format!("{}", v),
+    //     Some(Content::Door(v)) => format!("{}", v),
+    //     Some(Content::Passage) => ".".to_string(),
+    //     _ => " ".to_string(),
+    // });
 
     let not_wall_position = |p: &Pos| {
         let s = grid.get(p);
@@ -172,32 +134,110 @@ fn main() -> MainResult<()> {
         }
     };
 
-    let keys: HashSet<Key> = HashSet::new();
-    println!("Keys: {:?}", keys);
-    for _ in 0..1 {
-        println!("Current pos: {:?}", current_pos);
-        let next_moves = get_neighbouring_positions(current_pos).filter(not_wall_position);
+    let current_pos = current_pos;
+    let mut mementos: Vec<Memento> = vec![Memento::new(LinkedHashSet::<_>::new(), current_pos, 0)];
 
-        let moves: Vec<_> = next_moves.collect();
-        println!("Moves: {:?}", moves);
+    let mut min_total_distance = u32::max_value();
+    while !mementos.is_empty() {
+        // println!("Current pos: {:?}", current_pos);
+        // let next_moves = get_neighbouring_positions(current_pos).filter(not_wall_position);
 
-        let keys_distances = get_reachable_keys(&grid, &keys, current_pos);
-        println!("Key distances: {:?}", keys_distances);
+        // let moves: Vec<_> = next_moves.collect();
+        // println!("Moves: {:?}", moves);
+
+        let memento = mementos.pop().unwrap();
+        if memento.distance_from_origin >= min_total_distance {
+            continue;
+        }
+        let keys = &memento.keys;
+        debug!("Keys: {:?}", keys);
+
+        // Find out which keys are reachable from the current position and the
+        // set of keys we have
+        let keys_distances = get_reachable_keys(&grid, &keys, memento.position);
+        debug!("Key distances: {:?}", keys_distances);
+
+        if keys_distances.is_empty() {
+            info!(
+                "No more reachable keys. Keys: {:?}, Total Distance: {}",
+                memento.keys, memento.distance_from_origin
+            );
+        }
+
+        if keys_distances.len() == 1 && keys.len() == key_count - 1 {
+            let (key, (_, key_distance)) = keys_distances.iter().take(1).last().unwrap();
+            let total_distance = key_distance + memento.distance_from_origin;
+            debug!("All keys found! Distance = {}", total_distance);
+            if total_distance < min_total_distance {
+                min_total_distance = min(min_total_distance, total_distance);
+                let mut keys = memento.keys.clone();
+                keys.insert(*key);
+                info!(
+                    "New min path found: {:?}; Distance = {}",
+                    keys, total_distance
+                );
+            }
+            continue;
+        }
+        // Now we can choose to continue with any of the reachable keys
+        for (k, (position, distance)) in keys_distances {
+            let total_distance = distance + memento.distance_from_origin;
+            if total_distance < min_total_distance {
+                let mut memento_keys = keys.clone();
+                memento_keys.insert(k);
+                mementos.push(Memento::new(memento_keys, position, total_distance))
+            }
+        }
+
+        if mementos.is_empty() {
+            break;
+        }
     }
+
+    info!("Min distance: {}", min_total_distance);
 
     Ok(())
 }
 
+fn count_keys(grid: &ContentGrid) -> usize {
+    grid.values()
+        .filter(|x| match x {
+            Content::Key(_) => true,
+            _ => false,
+        })
+        .count()
+}
+
+struct Memento {
+    keys: LinkedHashSet<Key>,
+    position: Pos,
+    distance_from_origin: u32,
+}
+
+impl Memento {
+    fn new(keys: LinkedHashSet<Key>, position: Pos, distance_from_origin: u32) -> Memento {
+        Memento {
+            keys,
+            position,
+            distance_from_origin,
+        }
+    }
+}
+
 type Key = char;
 
-fn get_reachable_keys(grid: &ContentGrid, keys: &HashSet<Key>, pos: Pos) -> HashMap<Key, u32> {
-    let mut result: HashMap<Key, u32> = HashMap::new();
-    visit_all_from(grid, keys, pos, |key: Key, distance: u32| {
+fn get_reachable_keys(
+    grid: &ContentGrid,
+    keys: &LinkedHashSet<Key>,
+    pos: Pos,
+) -> HashMap<Key, (Pos, u32)> {
+    let mut result: HashMap<_, _> = HashMap::new();
+    visit_all_from(grid, keys, pos, |key: Key, pos: Pos, distance: u32| {
         let existing_distance = result.get(&key);
         match existing_distance {
-            Some(&d) if d > distance => (),
+            Some(&(_, d)) if d > distance => (),
             _ => {
-                result.insert(key, distance);
+                result.insert(key, (pos, distance));
             }
         }
     });
@@ -222,9 +262,9 @@ impl Cursor {
 
 fn visit_all_from(
     grid: &ContentGrid,
-    keys: &HashSet<Key>,
+    keys: &LinkedHashSet<Key>,
     from_pos: Pos,
-    mut on_key_reached: impl FnMut(Key, u32) -> (),
+    mut on_key_reached: impl FnMut(Key, Pos, u32) -> (),
 ) {
     let mut state: Grid<State> = grid
         .iter()
@@ -233,9 +273,8 @@ fn visit_all_from(
                 *k,
                 match v {
                     Content::Wall => State::Blocked,
-                    Content::Key(k) => State::Key(*k),
-                    Content::Door(d) => State::Door(*d),
-                    // Content::Door(d) if !keys.contains(d) => State::Blocked,
+                    Content::Key(k) if !keys.contains(k) => State::Key(*k),
+                    Content::Door(d) if !keys.contains(&d.to_ascii_lowercase()) => State::Door(*d),
                     _ => State::None,
                 },
             )
@@ -248,10 +287,15 @@ fn visit_all_from(
         distance: 0,
     }];
 
-    clear();
+    print_state(&state, None);
+
+    // clear();
     while !cursors.is_empty() {
-        set_cursor_position(0, 0);
-        print_state(&state, None);
+        // set_cursor_position(0, 0);
+        if log_enabled!(Level::Trace) {
+            print_state(&state, None);
+        }
+        // println!();
         // for c in &cursors {
         //     println!("{:?}", c);
         // }
@@ -264,11 +308,13 @@ fn visit_all_from(
 
         let mut next_cursors = vec![];
         for c in &cursors {
+            // For each cursor,
+            // See where we can go
             let next_moves: Vec<_> = get_neighbouring_positions(c.position)
                 .filter(|p| match state[p] {
                     State::None => true,
                     State::Key(k) => {
-                        on_key_reached(k, c.distance + 1);
+                        on_key_reached(k, *p, c.distance + 1);
                         false
                     }
                     State::Visited(d) => d > c.distance + 1,
@@ -304,6 +350,9 @@ fn display_grid<T>(
     current_pos: Option<Pos>,
     display: impl Fn(Option<&T>) -> String,
 ) {
+    if !log_enabled!(Level::Debug) {
+        return;
+    }
     let x_max = grid.keys().map(|Pos(x, _)| *x).max().unwrap();
     let y_max = grid.keys().map(|Pos(_, y)| *y).max().unwrap();
 
@@ -319,6 +368,7 @@ fn display_grid<T>(
 
         println!();
     }
+    println!();
 }
 
 extern crate kernel32;
@@ -344,11 +394,11 @@ static mut CONSOLE_HANDLE: Option<HANDLE> = None;
 fn get_output_handle() -> HANDLE {
     unsafe {
         if let Some(handle) = CONSOLE_HANDLE {
-            return handle;
+            handle
         } else {
             let handle = kernel32::GetStdHandle(winapi::STD_OUTPUT_HANDLE);
             CONSOLE_HANDLE = Some(handle);
-            return handle;
+            handle
         }
     }
 }

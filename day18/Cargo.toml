@@ -9,3 +9,6 @@ edition = "2018"
 [dependencies]
 winapi = "0.2.8"
 kernel32-sys = "0.2.2"
+linked_hash_set = "0.1.3"
+log = "0.4"
+simple_logger = "1.6"
