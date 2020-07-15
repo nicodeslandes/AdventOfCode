@@ -1,6 +1,6 @@
-#![allow(unused_variables)]
 #![allow(dead_code)]
 
+use crate::grid::*;
 use crate::iterators::*;
 use linked_hash_set::LinkedHashSet;
 use log::*;
@@ -8,57 +8,15 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
-use std::fs::File;
-use std::io::prelude::*;
-use std::io::BufReader;
 use std::result::Result;
 
+mod grid;
 mod iterators;
 
 type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub struct Pos(usize, usize);
-
-#[allow(dead_code)]
-#[derive(Debug)]
-enum Content {
-    Wall,
-    Key(char),
-    Door(char),
-    Passage,
-}
-
-type Grid<T> = HashMap<Pos, T>;
-type ContentGrid = Grid<Content>;
-
-#[allow(dead_code)]
-#[derive(Copy, Clone, Debug)]
-enum State {
-    Blocked,
-    None,
-    Visited(u32),
-    Key(char),
-    Door(char),
-}
-
-impl State {
-    #[allow(dead_code)]
-    fn is_blocked(&self) -> bool {
-        match *self {
-            State::Blocked => true,
-            _ => false,
-        }
-    }
-
-    #[allow(dead_code)]
-    fn get_distance(&self) -> Option<u32> {
-        match *self {
-            State::Visited(d) => Some(d),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Debug)]
 enum Direction {
@@ -68,74 +26,55 @@ enum Direction {
     Left,
 }
 
+/// Represents a path between 2 keys, potentially with doors
+/// between them
+#[derive(Debug)]
+struct KeyPath {
+    from: Key,
+    to: Key,
+    distance: u32,
+    doors: HashSet<Key>,
+}
+
+struct WalkState {
+    obtained_keys: LinkedHashSet<Key>,
+    reachable_keys: HashSet<Key>,
+    blocked_keys: HashSet<Key>,
+    total_distance: u32,
+    current_position: Key,
+}
+
 fn main() -> MainResult<()> {
     simple_logger::init().unwrap();
     log::set_max_level(LevelFilter::Info);
     let file_name = env::args().nth(1).expect("Enter a file name");
-    let file = File::open(file_name)?;
-    let mut reader = BufReader::new(file);
 
-    let mut walls: HashSet<Pos> = HashSet::new();
-    let mut grid: ContentGrid = ContentGrid::new();
+    let (grid, initial_pos) = parse_grid(&file_name)?;
+    display_content_grid(&grid, Some(initial_pos));
 
-    let mut y = 0;
-    let mut current_pos = Pos(0, 0);
-    loop {
-        let mut line = String::new();
-        let read = reader.read_line(&mut line)?;
-        if read == 0 {
-            break;
-        }
+    let keys = get_keys(&grid);
+    let key_count = keys.len();
 
-        for (x, ch) in line.chars().enumerate() {
-            let pos = Pos(x, y);
-            match ch {
-                '#' => {
-                    walls.insert(pos);
-                    grid.insert(pos, Content::Wall);
-                }
-                '.' => {
-                    grid.insert(pos, Content::Passage);
-                }
-                '@' => {
-                    current_pos = pos;
-                    grid.insert(pos, Content::Passage);
-                }
-                x if x.is_lowercase() => {
-                    grid.insert(pos, Content::Key(x));
-                }
-                x if x.is_uppercase() => {
-                    grid.insert(pos, Content::Door(x));
-                }
-                _ => (),
-            }
-        }
-
-        y += 1;
+    let mut path_map: HashMap<Key, Vec<KeyPath>> = HashMap::new();
+    for (pos, key) in keys {
+        let paths = get_all_paths_to_keys_from(&grid, pos);
+        debug!("Paths from {}: {:?}", key, paths);
+        path_map.insert(key, paths);
     }
 
-    let key_count = count_keys(&grid);
-
-    //println!("Walls: {:?}", walls);
-    //println!("State: {:?}", state);
-    // display_grid(&grid, Some(current_pos), |s| match s {
-    //     Some(Content::Wall) => String::from("#"),
-    //     Some(Content::Key(v)) => format!("{}", v),
-    //     Some(Content::Door(v)) => format!("{}", v),
-    //     Some(Content::Passage) => ".".to_string(),
-    //     _ => " ".to_string(),
-    // });
-
-    let not_wall_position = |p: &Pos| {
-        let s = grid.get(p);
-        match s {
-            Some(Content::Wall) | None => false,
-            _ => true,
+    if log_enabled!(Level::Info) {
+        for (k, paths) in &path_map {
+            info!("From key {}", k);
+            for p in paths {
+                info!(
+                    "  {}->{} ({}); Doors: {:?}",
+                    p.from, p.to, p.distance, p.doors
+                );
+            }
         }
-    };
+    }
 
-    let current_pos = current_pos;
-    let mut mementos: Vec<Memento> = vec![Memento::new(LinkedHashSet::<_>::new(), current_pos, 0)];
+    let mut mementos: Vec<Memento> = vec![Memento::new(LinkedHashSet::<_>::new(), initial_pos, 0)];
 
     let mut min_total_distance = u32::max_value();
     while !mementos.is_empty() {
@@ -202,13 +141,17 @@ fn main() -> MainResult<()> {
     Ok(())
 }
 
-fn count_keys(grid: &ContentGrid) -> usize {
-    grid.values()
+fn get_keys(grid: &ContentGrid) -> Vec<(Pos, Key)> {
+    grid.iter()
         .filter(|x| match x {
-            Content::Key(_) => true,
+            (_, Content::Key(_)) => true,
             _ => false,
         })
-        .count()
+        .map(|x| match x {
+            (pos, Content::Key(k)) => (*pos, *k),
+            _ => panic!("Invalid match"),
+        })
+        .collect()
 }
 
 struct Memento {
@@ -230,28 +173,69 @@ impl Memento {
 type Key = char;
 
 fn get_reachable_keys(
-    grid: &ContentGrid,
-    keys: &LinkedHashSet<Key>,
-    pos: Pos,
+    _grid: &ContentGrid,
+    _keys: &LinkedHashSet<Key>,
+    _pos: Pos,
 ) -> HashMap<Key, (Pos, u32)> {
-    let mut result: HashMap<_, _> = HashMap::new();
-    visit_all_from(grid, keys, pos, |key: Key, pos: Pos, distance: u32| {
-        let existing_distance = result.get(&key);
-        match existing_distance {
-            Some(&(_, d)) if d > distance => (),
-            _ => {
-                result.insert(key, (pos, distance));
-            }
-        }
-    });
-
-    result
+    HashMap::<_, _>::new()
 }
 
-#[derive(Debug)]
+//     let mut result: HashMap<_, _> = HashMap::new();
+//     visit_all_from(
+//         grid,
+//         keys,
+//         pos,
+//         |c| match c {
+//             Content::Wall => false,
+//             _ => true,
+//         },
+//         |content, pos: Pos, distance: u32| match content {
+//             Content::Key(key) => {
+//                 let existing_distance = result.get(&key);
+//                 match existing_distance {
+//                     Some(&(_, d)) if d > distance => (),
+//                     _ => {
+//                         result.insert(key, (pos, distance));
+//                     }
+//                 }
+//             }
+//             _ => (),
+//         },
+//     );
+
+//     result
+// }
+
+// fn get_all_paths_to_keys_from(grid: &ContentGrid, pos: Pos) -> HashMap<Key, KeyPath> {
+//     let mut result: HashMap<_, _> = HashMap::new();
+//     let from_key = grid[&pos].get_key();
+//     visit_all_from(
+//         grid,
+//         &LinkedHashSet::<_>::new(),
+//         pos,
+//         |c| match c {
+//             Content::Wall => false,
+//             _ => true,
+//         },
+//         |key: Key, pos: Pos, distance: u32| {
+//             let existing_distance = result.get(&key);
+//             match existing_distance {
+//                 Some(&(_, d)) if d > distance => (),
+//                 _ => {
+//                     result.insert(key, (pos, distance));
+//                 }
+//             }
+//         },
+//     );
+
+//     result
+// }
+
+#[derive(Debug, Clone)]
 struct Cursor {
     position: Pos,
     distance: u32,
+    doors: Vec<char>,
 }
 
 impl Cursor {
@@ -259,44 +243,45 @@ impl Cursor {
         Cursor {
             position: pos,
             distance,
+            doors: vec![],
         }
     }
 }
 
-fn visit_all_from(
-    grid: &ContentGrid,
-    keys: &LinkedHashSet<Key>,
-    from_pos: Pos,
-    mut on_key_reached: impl FnMut(Key, Pos, u32) -> (),
-) {
-    let mut state: Grid<State> = grid
-        .iter()
-        .map(|(k, v)| {
-            (
-                *k,
-                match v {
-                    Content::Wall => State::Blocked,
-                    Content::Key(k) if !keys.contains(k) => State::Key(*k),
-                    Content::Door(d) if !keys.contains(&d.to_ascii_lowercase()) => State::Door(*d),
-                    _ => State::None,
-                },
-            )
-        })
-        .collect();
+fn get_all_paths_to_keys_from(grid: &ContentGrid, from_pos: Pos) -> Vec<KeyPath> {
+    debug!("Calculating paths from position {:?}", from_pos);
+    let mut result = vec![];
+    let mut state: Grid<u32> = Grid::new();
+    state.insert(from_pos, 0);
 
-    state.insert(from_pos, State::Visited(0));
+    let from_key = match grid[&from_pos] {
+        Content::Key(k) => k,
+        _ => panic!("Unexpected"),
+    };
+
     let mut cursors = vec![Cursor {
         position: from_pos,
         distance: 0,
+        doors: vec![],
     }];
 
-    print_state(&state, None);
+    print_state(&grid, &state, None);
+
+    let mut on_key_found = |k: Key, c: &Cursor| {
+        debug!("Found key {}", k);
+        result.push(KeyPath {
+            from: from_key,
+            to: k,
+            distance: c.distance,
+            doors: c.doors.iter().copied().collect(),
+        });
+    };
 
     // clear();
     while !cursors.is_empty() {
         // set_cursor_position(0, 0);
         if log_enabled!(Level::Trace) {
-            print_state(&state, None);
+            print_state(&grid, &state, None);
         }
         // println!();
         // for c in &cursors {
@@ -310,37 +295,69 @@ fn visit_all_from(
         //thread::sleep(Duration::from_millis(10));
 
         let mut next_cursors = vec![];
-        for c in &cursors {
+        for (i, c) in cursors.iter().enumerate() {
+            trace!("Cursor {}: position: {:?}", i, c.position);
             // For each cursor,
             // See where we can go
             let next_moves: Vec<_> = get_neighbouring_positions(c.position)
-                .filter(|p| match state[p] {
-                    State::None => true,
-                    State::Key(k) => {
-                        on_key_reached(k, *p, c.distance + 1);
-                        false
-                    }
-                    State::Visited(d) => d > c.distance + 1,
-                    _ => false,
+                .filter(|p| match grid[p] {
+                    Content::Wall => false,
+                    _ => true,
                 })
+                .filter(|p| !state.contains_key(p))
                 .collect();
-            for m in next_moves {
-                state.insert(m, State::Visited(c.distance + 1));
-                next_cursors.push(Cursor::new(m, c.distance + 1));
+
+            for &m in next_moves.iter() {
+                // TODO: How to only clone for the first n-1 cursors?
+                let mut new_cursor = c.clone();
+
+                new_cursor.distance += 1;
+                new_cursor.position = m;
+
+                match grid[&m] {
+                    Content::Key(k) => on_key_found(k, &new_cursor),
+                    Content::Door(k) => {
+                        let k = k.to_ascii_lowercase();
+                        if k != from_key {
+                            debug!("Door found: {}", k);
+                            new_cursor.doors.push(k);
+                        }
+                    }
+                    _ => (),
+                }
+
+                state.insert(m, new_cursor.distance);
+                next_cursors.push(new_cursor);
             }
         }
 
         cursors = next_cursors;
     }
+
+    result
 }
 
-fn print_state(state_grid: &Grid<State>, current_pos: Option<Pos>) {
-    display_grid(state_grid, current_pos, |s| match s {
-        Some(State::None) | None => String::from("  "),
-        Some(State::Visited(d)) => format!("{} ", d % 10),
-        Some(State::Key(k)) => format!("{} ", k),
-        Some(State::Door(k)) => format!("{} ", k),
-        Some(State::Blocked) => String::from("██"),
+fn print_state(grid: &ContentGrid, state_grid: &Grid<u32>, current_pos: Option<Pos>) {
+    if !log_enabled!(Level::Debug) {
+        return;
+    }
+    display_grid(grid, current_pos, |pos, s| match s {
+        Some(Content::Passage) | None => match state_grid.get(&pos) {
+            None => String::from("  "),
+            Some(d) => format!("{} ", d % 10),
+        },
+        Some(Content::Key(k)) => format!("{} ", k),
+        Some(Content::Door(k)) => format!("{} ", k),
+        Some(Content::Wall) => String::from("██"),
+    });
+}
+
+fn display_content_grid(grid: &ContentGrid, current_pos: Option<Pos>) {
+    display_grid(grid, current_pos, |_pos, s| match s {
+        Some(Content::Passage) | None => String::from("  "),
+        Some(Content::Key(k)) => format!("{} ", k),
+        Some(Content::Door(k)) => format!("{} ", k),
+        Some(Content::Wall) => String::from("██"),
     });
 }
 
@@ -351,9 +368,9 @@ fn get_neighbouring_positions(pos: Pos) -> NextMoveIterator {
 fn display_grid<T>(
     grid: &Grid<T>,
     current_pos: Option<Pos>,
-    display: impl Fn(Option<&T>) -> String,
+    display: impl Fn(Pos, Option<&T>) -> String,
 ) {
-    if !log_enabled!(Level::Debug) {
+    if !log_enabled!(Level::Info) {
         return;
     }
     let x_max = grid.keys().map(|Pos(x, _)| *x).max().unwrap();
@@ -363,10 +380,12 @@ fn display_grid<T>(
         for x in 0..x_max + 1 {
             if let Some(p) = current_pos {
                 if p == Pos(x, y) {
-                    print!("@");
+                    print!("@ ");
+                    continue;
                 }
             }
-            print!("{}", display(grid.get(&Pos(x, y))));
+            let pos = Pos(x, y);
+            print!("{}", display(pos, grid.get(&pos)));
         }
 
         println!();
