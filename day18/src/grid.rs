@@ -50,7 +50,7 @@ pub fn parse_grid(file_name: &str) -> MainResult<(ContentGrid, Pos)> {
                 }
                 '@' => {
                     current_pos = pos;
-                    grid.insert(pos, Content::Passage);
+                    grid.insert(pos, Content::Key('@'));
                 }
                 x if x.is_lowercase() => {
                     grid.insert(pos, Content::Key(x));
