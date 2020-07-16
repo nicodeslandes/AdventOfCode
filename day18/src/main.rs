@@ -123,24 +123,21 @@ fn main() -> MainResult<()> {
             })
             .collect();
 
-        if log_enabled!(Level::Debug) {
-            let v: Vec<_> = reachable_keys
-                .iter()
-                .map(|kp| (kp.to, kp.distance))
-                .collect();
-            debug!("Reachable keys: {:?}", v);
-        }
+        // if log_enabled!(Level::Debug) {
+        //     let v: Vec<_> = reachable_keys.map(|kp| (kp.to, kp.distance)).collect();
+        //     debug!("Reachable keys: {:?}", v);
+        // }
 
-        if reachable_keys.is_empty() {
-            info!(
-                "No more reachable keys. Keys: {:?}, Total Distance: {}",
-                memento.keys, memento.distance_from_origin
-            );
-        }
+        // if reachable_keys.is_empty() {
+        //     info!(
+        //         "No more reachable keys. Keys: {:?}, Total Distance: {}",
+        //         memento.keys, memento.distance_from_origin
+        //     );
+        // }
 
         // Now we can choose to continue with any of the reachable keys
         reachable_keys.sort_by_key(|k| u32::max_value() - k.distance);
-        for key_path in &reachable_keys {
+        for key_path in reachable_keys {
             let total_distance = key_path.distance + memento.distance_from_origin;
             if total_distance < min_total_distance {
                 let mut memento_keys = keys.clone();
@@ -280,6 +277,10 @@ fn get_all_paths_to_keys_from(grid: &ContentGrid, from_pos: Pos) -> Vec<KeyPath>
     print_state(&grid, &state, None);
 
     let mut on_key_found = |k: Key, c: &Cursor| {
+        // Ignore paths back to the origin
+        if k == '@' {
+            return;
+        }
         debug!("Found key {}", k);
         result.push(KeyPath {
             from: from_key,
