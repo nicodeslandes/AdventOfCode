@@ -4,9 +4,13 @@ use crate::grid::*;
 use crate::iterators::*;
 use linked_hash_set::LinkedHashSet;
 use log::*;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
+use std::fmt;
+use std::fmt::{Debug, Display};
+use std::rc::Rc;
 use std::result::Result;
 
 mod grid;
@@ -27,7 +31,7 @@ enum Direction {
 
 /// Represents a path between 2 keys, potentially with doors
 /// between them
-#[derive(Debug)]
+#[derive(Clone)]
 struct KeyPath {
     from: Key,
     to: Key,
@@ -35,12 +39,16 @@ struct KeyPath {
     doors: HashSet<Key>,
 }
 
-struct WalkState {
-    obtained_keys: LinkedHashSet<Key>,
-    reachable_keys: HashSet<Key>,
-    blocked_keys: HashSet<Key>,
-    total_distance: u32,
-    current_position: Key,
+impl Debug for KeyPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{}->{} ({})", self.from, self.to, self.distance)
+    }
+}
+
+impl Display for KeyPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}->{} ({})", self.from, self.to, self.distance)
+    }
 }
 
 fn main() -> MainResult<()> {
@@ -53,19 +61,48 @@ fn main() -> MainResult<()> {
 
     let keys = get_keys(&grid);
 
-    let key_count = keys.len();
-
-    let mut path_map: HashMap<Key, Vec<KeyPath>> = HashMap::new();
-    for (pos, key) in keys {
-        let paths = get_all_paths_to_keys_from(&grid, pos);
+    let mut path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>> = HashMap::new();
+    let mut target_keys_to_keypath: HashMap<Key, Vec<Rc<RefCell<KeyPath>>>> = HashMap::new();
+    let mut doors_to_keypath: HashMap<Key, Vec<Rc<RefCell<KeyPath>>>> = HashMap::new();
+    for (pos, key) in &keys {
+        let paths = get_all_paths_to_keys_from(&grid, *pos);
         debug!("Paths from {}: {:?}", key, paths);
-        path_map.insert(key, paths);
+
+        let mut key_paths = HashMap::new();
+        for p in paths {
+            let to = p.to;
+            let key_path_ref = Rc::from(RefCell::from(p));
+            key_paths.insert(to, key_path_ref.clone());
+            match target_keys_to_keypath.get_mut(&to) {
+                None => {
+                    target_keys_to_keypath.insert(to, vec![key_path_ref.clone()]);
+                }
+                Some(kp) => kp.push(key_path_ref.clone()),
+            };
+
+            for &door in &key_path_ref.borrow().doors {
+                match doors_to_keypath.get_mut(&door) {
+                    None => {
+                        doors_to_keypath.insert(door, vec![key_path_ref.clone()]);
+                    }
+                    Some(kp) => kp.push(key_path_ref.clone()),
+                }
+            }
+        }
+
+        path_map.insert(*key, key_paths);
     }
 
     if log_enabled!(Level::Info) {
-        for (k, paths) in &path_map {
+        let mut keys: Vec<_> = path_map.keys().collect();
+        keys.sort();
+        for k in keys {
             info!("From key {}", k);
-            for p in paths {
+            let key_path_map = &path_map[k];
+            let mut to_keys: Vec<_> = key_path_map.keys().collect();
+            to_keys.sort_by_key(|k| key_path_map[k].borrow().distance);
+            for k in to_keys {
+                let p = key_path_map[k].borrow();
                 info!(
                     "  {}->{} ({}); Doors: {:?}",
                     p.from, p.to, p.distance, p.doors
@@ -74,81 +111,232 @@ fn main() -> MainResult<()> {
         }
     }
 
-    // Start with a single choice: '@', with a distance of 0
-    let mut mementos: Vec<Memento> = vec![Memento::new(vec!['@'].into_iter().collect(), 0u32)];
-    let mut min_total_distance = u32::max_value();
-    while !mementos.is_empty() {
-        // Get all the
-        // println!("Current pos: {:?}", current_pos);
-        // let next_moves = get_neighbouring_positions(current_pos).filter(not_wall_position);
+    struct State {
+        min_total_distance: u32,
+        min_path: LinkedHashSet<Key>,
+        current_distance: u32,
+        keys: LinkedHashSet<Key>,
+        key_count: usize,
+        path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
+    }
 
-        // let moves: Vec<_> = next_moves.collect();
-        // println!("Moves: {:?}", moves);
-
-        let mut memento = mementos.pop().unwrap();
-        if memento.distance_from_origin >= min_total_distance {
-            continue;
-        }
-        let keys = &mut memento.keys;
-
-        if keys.len() == key_count {
-            // We have path with all keys
-            debug!(
-                "All keys found! Distance = {}",
-                memento.distance_from_origin
-            );
-            min_total_distance = memento.distance_from_origin;
-            info!(
-                "New min path found: {:?}; Distance = {}",
-                keys, min_total_distance
-            );
-            continue;
-        }
-
-        debug!(
-            "Memento keys: {:?}, distance: {}",
-            keys, memento.distance_from_origin
-        );
-
-        // Find out which keys are reachable from the current position and the
-        // set of keys we have
-        let current_key = *keys.back().expect("No key found on memento!");
-        let keys = &memento.keys;
-
-        let mut reachable_keys: Vec<_> = path_map[&current_key]
-            .iter()
-            .filter(|key_path| {
-                !keys.contains(&key_path.to)
-                    && key_path.doors.iter().all(|door| keys.contains(door))
-            })
-            .collect();
-
-        // if log_enabled!(Level::Debug) {
-        //     let v: Vec<_> = reachable_keys.map(|kp| (kp.to, kp.distance)).collect();
-        //     debug!("Reachable keys: {:?}", v);
-        // }
-
-        // if reachable_keys.is_empty() {
-        //     info!(
-        //         "No more reachable keys. Keys: {:?}, Total Distance: {}",
-        //         memento.keys, memento.distance_from_origin
-        //     );
-        // }
-
-        // Now we can choose to continue with any of the reachable keys
-        reachable_keys.sort_by_key(|k| u32::max_value() - k.distance);
-        for key_path in reachable_keys {
-            let total_distance = key_path.distance + memento.distance_from_origin;
-            if total_distance < min_total_distance {
-                let mut memento_keys = keys.clone();
-                memento_keys.insert(key_path.to);
-                mementos.push(Memento::new(memento_keys, total_distance))
+    impl State {
+        fn new(path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>) -> State {
+            let key_count = path_map.len();
+            State {
+                min_total_distance: u32::max_value(),
+                min_path: LinkedHashSet::new(),
+                current_distance: 0,
+                keys: LinkedHashSet::new(),
+                key_count,
+                path_map,
             }
         }
     }
+    struct Statics {
+        target_keys_to_keypath: HashMap<Key, Vec<Rc<RefCell<KeyPath>>>>,
+        doors_to_keypath: HashMap<Key, Vec<Rc<RefCell<KeyPath>>>>,
+    }
 
-    info!("Min distance: {}", min_total_distance);
+    fn get_min_distance(
+        statics: &Statics,
+        state: &mut State,
+        next_key: Key,
+        distance_to_key: u32,
+    ) -> u32 {
+        state.current_distance += distance_to_key;
+        if log_enabled!(Level::Debug) {
+            state.keys.insert(next_key);
+            debug!(
+                "Exploring key {}, distance: {}; current path: {:?} (distance: {})",
+                next_key, distance_to_key, state.keys, state.current_distance
+            );
+            state.keys.pop_back();
+        }
 
+        // If this key takes us past the current min path length, don't go further
+        if state.current_distance >= state.min_total_distance {
+            state.current_distance -= distance_to_key;
+            return state.min_total_distance;
+        }
+
+        // Otherwise, update the state
+        state.keys.insert(next_key);
+        if state.keys.len() == state.key_count {
+            info!(
+                "New min path found! {:?} distance: {}",
+                state.keys, state.current_distance
+            );
+
+            state.min_total_distance = state.current_distance;
+            state.min_path = state.keys.clone();
+
+            // Revert state changes
+            state.current_distance -= distance_to_key;
+            state.keys.pop_back();
+        } else {
+            // "Open" the door for the new key, ie update all the paths that contain it and remove
+            // the door from them
+            if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
+                for kp in key_paths {
+                    kp.borrow_mut().doors.remove(&next_key);
+                }
+            }
+
+            // Remove the paths going to that key: we don't need them during this call
+            let mut removed_key_paths = vec![];
+            for key_path in &statics.target_keys_to_keypath[&next_key] {
+                let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+                if let Some(kp) = from_key_paths.remove(&next_key) {
+                    removed_key_paths.push(kp);
+                }
+            }
+
+            // Explore the possible paths
+
+            // Find out which keys are reachable from the current position and the
+            // set of keys we have
+            let keys = &state.keys;
+            let mut reachable_keys: Vec<_> = state.path_map[&next_key]
+                .iter()
+                .filter(|(_, key_path)| {
+                    !keys.contains(&key_path.borrow().to)
+                        && key_path
+                            .borrow()
+                            .doors
+                            .iter()
+                            .all(|door| keys.contains(door))
+                })
+                .map(|(_to, kp)| kp)
+                .cloned()
+                .collect();
+
+            // Now we can choose to continue with any of the reachable keys
+            reachable_keys.sort_by_key(|k| u32::max_value() - k.borrow().distance);
+            trace!(
+                "Reachable keys: {:?}",
+                reachable_keys
+                    .iter()
+                    .map(|k| k.borrow())
+                    .collect::<Vec<_>>()
+            );
+
+            for key_path in reachable_keys {
+                let key_path = key_path.borrow();
+                get_min_distance(statics, state, key_path.to, key_path.distance);
+            }
+
+            // Before leaving the function, restore the state
+            // Close the door again, ie add the door to all the keypath
+            if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
+                for kp in key_paths {
+                    kp.borrow_mut().doors.insert(next_key);
+                }
+            }
+
+            // Add back the paths going to that key
+            for key_path in removed_key_paths {
+                let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+                let to = key_path.borrow().to;
+                from_key_paths.insert(to, key_path);
+            }
+
+            state.current_distance -= distance_to_key;
+            state.keys.pop_back();
+        }
+
+        state.min_total_distance
+    };
+
+    let statics = Statics {
+        target_keys_to_keypath,
+        doors_to_keypath,
+    };
+    let mut state = State::new(path_map);
+
+    info!("Key count: {}", state.key_count);
+    // Start with a single choice: '@', with a distance of 0
+    let distance = get_min_distance(&statics, &mut state, '@', 0);
+
+    // let mut mementos: Vec<Memento> = vec![Memento::new(vec!['@'].into_iter().collect(), 0u32)];
+    // let mut min_total_distance = u32::max_value();
+    // while !mementos.is_empty() {
+    //     // Get all the
+    //     // println!("Current pos: {:?}", current_pos);
+    //     // let next_moves = get_neighbouring_positions(current_pos).filter(not_wall_position);
+
+    //     // let moves: Vec<_> = next_moves.collect();
+    //     // println!("Moves: {:?}", moves);
+
+    //     let mut memento = mementos.pop().unwrap();
+    //     if memento.distance_from_origin >= min_total_distance {
+    //         continue;
+    //     }
+    //     let keys = &mut memento.keys;
+
+    //     if keys.len() == key_count {
+    //         // We have path with all keys
+    //         debug!(
+    //             "All keys found! Distance = {}",
+    //             memento.distance_from_origin
+    //         );
+    //         min_total_distance = memento.distance_from_origin;
+    //         info!(
+    //             "New min path found: {:?}; Distance = {}",
+    //             keys, min_total_distance
+    //         );
+    //         continue;
+    //     }
+
+    //     debug!(
+    //         "Memento keys: {:?}, distance: {}",
+    //         keys, memento.distance_from_origin
+    //     );
+
+    //     // Find out which keys are reachable from the current position and the
+    //     // set of keys we have
+    //     let current_key = *keys.back().expect("No key found on memento!");
+    //     let keys = &memento.keys;
+
+    //     let mut reachable_keys: Vec<_> = state.path_map[&current_key]
+    //         .iter()
+    //         .filter(|(_, key_path)| {
+    //             !keys.contains(&key_path.borrow().to)
+    //                 && key_path
+    //                     .borrow()
+    //                     .doors
+    //                     .iter()
+    //                     .all(|door| keys.contains(door))
+    //         })
+    //         .collect();
+
+    //     // if log_enabled!(Level::Debug) {
+    //     //     let v: Vec<_> = reachable_keys.map(|kp| (kp.to, kp.distance)).collect();
+    //     //     debug!("Reachable keys: {:?}", v);
+    //     // }
+
+    //     // if reachable_keys.is_empty() {
+    //     //     info!(
+    //     //         "No more reachable keys. Keys: {:?}, Total Distance: {}",
+    //     //         memento.keys, memento.distance_from_origin
+    //     //     );
+    //     // }
+
+    //     // Now we can choose to continue with any of the reachable keys
+    //     reachable_keys.sort_by_key(|(_, k)| u32::max_value() - k.borrow().distance);
+    //     for (_, key_path) in reachable_keys {
+    //         let key_path = key_path.borrow();
+    //         let total_distance = key_path.distance + memento.distance_from_origin;
+    //         if total_distance < min_total_distance {
+    //             let mut memento_keys = keys.clone();
+    //             memento_keys.insert(key_path.to);
+    //             mementos.push(Memento::new(memento_keys, total_distance))
+    //         }
+    //     }
+    // }
+
+    info!("Min distance: {}", distance);
+    info!("Path: {:?}", state.min_path);
     Ok(())
 }
 
@@ -277,10 +465,6 @@ fn get_all_paths_to_keys_from(grid: &ContentGrid, from_pos: Pos) -> Vec<KeyPath>
     print_state(&grid, &state, None);
 
     let mut on_key_found = |k: Key, c: &Cursor| {
-        // Ignore paths back to the origin
-        if k == '@' {
-            return;
-        }
         debug!("Found key {}", k);
         result.push(KeyPath {
             from: from_key,
