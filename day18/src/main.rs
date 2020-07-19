@@ -77,7 +77,9 @@ fn main() -> MainResult<()> {
     // Start with a single choice: '@', with a distance of 0
     let mut mementos: Vec<Memento> = vec![Memento::new(vec!['@'].into_iter().collect(), 0u32)];
     let mut min_total_distance = u32::max_value();
+    let mut count = 0;
     while !mementos.is_empty() {
+        count += 1;
         // Get all the
         // println!("Current pos: {:?}", current_pos);
         // let next_moves = get_neighbouring_positions(current_pos).filter(not_wall_position);
@@ -86,10 +88,11 @@ fn main() -> MainResult<()> {
         // println!("Moves: {:?}", moves);
 
         let mut memento = mementos.pop().unwrap();
+        let keys = &mut memento.keys;
+
         if memento.distance_from_origin >= min_total_distance {
             continue;
         }
-        let keys = &mut memento.keys;
 
         if keys.len() == key_count {
             // We have path with all keys
@@ -105,11 +108,18 @@ fn main() -> MainResult<()> {
             continue;
         }
 
-        debug!(
-            "Memento keys: {:?}, distance: {}",
-            keys, memento.distance_from_origin
-        );
-
+        if count > 1_000_000 {
+            info!(
+                "Memento keys: {:?}, distance: {}",
+                keys, memento.distance_from_origin
+            );
+            count = 0;
+        } else {
+            debug!(
+                "Memento keys: {:?}, distance: {}",
+                keys, memento.distance_from_origin
+            );
+        }
         // Find out which keys are reachable from the current position and the
         // set of keys we have
         let current_key = *keys.back().expect("No key found on memento!");
