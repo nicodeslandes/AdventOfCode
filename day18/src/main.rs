@@ -512,7 +512,12 @@ fn get_all_paths_to_keys_from(grid: &ContentGrid, from_pos: Pos) -> Vec<KeyPath>
                 new_cursor.position = m;
 
                 match grid[&m] {
-                    Content::Key(k) => on_key_found(k, &new_cursor),
+                    Content::Key(k) => {
+                        on_key_found(k, &new_cursor);
+                        // Also mark the key as a door, as we don't want to consider that path
+                        // before reaching this key
+                        new_cursor.doors.push(k);
+                    }
                     Content::Door(k) => {
                         let k = k.to_ascii_lowercase();
                         if k != from_key {
