@@ -1,4 +1,3 @@
-use crate::Key;
 use crate::MainResult;
 use crate::Pos;
 use std::collections::HashMap;
@@ -12,15 +11,6 @@ pub enum Content {
     Key(char),
     Door(char),
     Passage,
-}
-
-impl Content {
-    pub fn get_key(&self) -> Key {
-        match *self {
-            Content::Key(c) => c,
-            _ => panic!("Invalid content type"),
-        }
-    }
 }
 
 pub type Grid<T> = HashMap<Pos, T>;
