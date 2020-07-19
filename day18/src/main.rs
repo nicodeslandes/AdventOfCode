@@ -118,6 +118,7 @@ fn main() -> MainResult<()> {
         keys: LinkedHashSet<Key>,
         key_count: usize,
         path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
+        iteration_count: u32,
     }
 
     impl State {
@@ -130,6 +131,7 @@ fn main() -> MainResult<()> {
                 keys: LinkedHashSet::new(),
                 key_count,
                 path_map,
+                iteration_count: 0,
             }
         }
     }
@@ -150,6 +152,17 @@ fn main() -> MainResult<()> {
             debug!(
                 "Exploring key {}, distance: {}; current path: {:?} (distance: {})",
                 next_key, distance_to_key, state.keys, state.current_distance
+            );
+            state.keys.pop_back();
+        }
+
+        state.iteration_count += 1;
+        if state.iteration_count == 10_000_000 {
+            state.iteration_count = 0;
+            state.keys.insert(next_key);
+            info!(
+                "Current path: {:?} (distance: {}; min_distance: {}",
+                state.keys, state.current_distance, state.min_total_distance
             );
             state.keys.pop_back();
         }
@@ -212,7 +225,7 @@ fn main() -> MainResult<()> {
                 .collect();
 
             // Now we can choose to continue with any of the reachable keys
-            reachable_keys.sort_by_key(|k| u32::max_value() - k.borrow().distance);
+            reachable_keys.sort_by_key(|k| k.borrow().distance);
             trace!(
                 "Reachable keys: {:?}",
                 reachable_keys
