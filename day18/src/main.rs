@@ -65,18 +65,23 @@ struct State {
     current_distance: u32,
     reachable_keys: HashSet<Key>,
     keys: LinkedHashSet<Key>,
+    keys_by_cursor: Vec<Key>,
     path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
     iteration_count: u32,
 }
 
 impl State {
-    fn new(path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>) -> State {
+    fn new(
+        initial_keys: Vec<Key>,
+        path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
+    ) -> State {
         let key_count = path_map.len();
         State {
             reachable_keys: HashSet::new(),
             min_total_distance: u32::max_value(),
             min_path: LinkedHashSet::new(),
             current_distance: 0,
+            keys_by_cursor: initial_keys,
             keys: LinkedHashSet::new(),
             key_count,
             path_map,
@@ -92,13 +97,37 @@ struct Statics {
 
 fn main() -> MainResult<()> {
     simple_logger::init().unwrap();
-    log::set_max_level(LevelFilter::Info);
+    log::set_max_level(LevelFilter::Debug);
     let file_name = env::args().nth(1).expect("Enter a file name");
 
-    let (grid, initial_pos) = parse_grid(&file_name)?;
-    display_content_grid(&grid, Some(initial_pos));
+    let (mut grid, initial_pos) = parse_grid(&file_name)?;
 
+    // Update the grid for part 2
+    // Close the path around initial_pos
+    for p in get_neighbouring_positions(initial_pos) {
+        grid.insert(p, Content::Wall);
+    }
+    grid.insert(initial_pos, Content::Wall);
+
+    let start_keys: Vec<_> = vec!['@', '$', '%', '#'];
+    let mut start_keys_content: Vec<_> = start_keys.iter().copied().map(Content::Key).collect();
     let start = Instant::now();
+    for xd in -1..=1 {
+        for yd in -1..=1 {
+            if xd * yd != 0 {
+                let start_key_pos = Pos(
+                    ((initial_pos.0 as isize) + xd) as usize,
+                    (initial_pos.1 as isize + yd) as usize,
+                );
+                grid.insert(
+                    start_key_pos,
+                    start_keys_content.pop().expect("Ran out of start keys!"),
+                );
+            }
+        }
+    }
+
+    display_content_grid(&grid, None);
     let paths_info = compute_paths(&grid);
     print_keys(&paths_info.path_map);
 
@@ -106,7 +135,7 @@ fn main() -> MainResult<()> {
         doors_to_keypath: paths_info.doors_to_keypath,
         target_keys_to_keypath: paths_info.target_keys_to_keypath,
     };
-    let mut state = State::new(paths_info.path_map);
+    let mut state = State::new(start_keys, paths_info.path_map);
     for (key, key_path) in state.path_map[&'@'].iter() {
         if key_path.borrow().doors.is_empty() {
             debug!("Adding reachable key {}", *key);
@@ -116,8 +145,21 @@ fn main() -> MainResult<()> {
 
     info!("Key count: {}", state.key_count);
 
-    // Start with a single choice: '@', with a distance of 0
-    let distance = get_min_distance(&statics, &mut state, '@', 0);
+    // Add a dummy key, with a 0-long distance to all initial positions
+    for k in &start_keys {
+        let key_path = Rc::new(RefCell::new(KeyPath {
+            from: '*',
+            to: *k,
+            distance: 0,
+            doors: HashSet::new(),
+        }));
+        let key_path_map: HashMap<Key, Rc<RefCell<KeyPath>>> = HashMap::new();
+        key_path_map.insert('*', key_path);
+        paths_info.path_map.insert('*', key_path_map);
+    }
+
+    // Start with a single choice: start_keys, with a distance of 0
+    let distance = get_min_distance(&statics, &mut state, 0, '*', 0);
 
     info!(
         "Min distance found in {} ms: {}",
@@ -184,6 +226,7 @@ fn compute_paths(grid: &ContentGrid) -> PathsInfo {
 fn get_min_distance(
     statics: &Statics,
     state: &mut State,
+    next_cursor: usize,
     next_key: Key,
     distance_to_key: u32,
 ) -> u32 {
@@ -279,6 +322,7 @@ fn get_min_distance(
         // Find out which keys are reachable from the current position and the
         // set of keys we have
         // Now we can choose to continue with any of the reachable keys
+        let cursors = 0..4;
         if log_enabled!(Level::Debug) {
             debug!(
                 "Reachable keys: {:?}, next_key: {}, path_map:",
