@@ -2,6 +2,7 @@ use crate::grid::*;
 use crate::iterators::*;
 use linked_hash_set::LinkedHashSet;
 use log::*;
+use num_format::{Locale, ToFormattedString};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -11,6 +12,7 @@ use std::fmt::Write;
 use std::fmt::{Debug, Display};
 use std::rc::Rc;
 use std::result::Result;
+use std::time::Instant;
 
 mod grid;
 mod iterators;
@@ -96,6 +98,7 @@ fn main() -> MainResult<()> {
     let (grid, initial_pos) = parse_grid(&file_name)?;
     display_content_grid(&grid, Some(initial_pos));
 
+    let start = Instant::now();
     let paths_info = compute_paths(&grid);
     print_keys(&paths_info.path_map);
 
@@ -116,7 +119,13 @@ fn main() -> MainResult<()> {
     // Start with a single choice: '@', with a distance of 0
     let distance = get_min_distance(&statics, &mut state, '@', 0);
 
-    info!("Min distance: {}", distance);
+    info!(
+        "Min distance found in {} ms: {}",
+        (Instant::now() - start)
+            .as_millis()
+            .to_formatted_string(&Locale::en),
+        distance
+    );
     info!("Path: {:?}", state.min_path);
     Ok(())
 }
