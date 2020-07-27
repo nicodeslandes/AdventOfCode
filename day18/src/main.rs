@@ -63,7 +63,7 @@ struct State {
     min_total_distance: u32,
     min_path: LinkedHashSet<Key>,
     current_distance: u32,
-    reachable_keys: HashSet<Key>,
+    reachable_keys_per_cursor: Vec<HashSet<Key>>,
     keys: LinkedHashSet<Key>,
     keys_by_cursor: Vec<Key>,
     path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
@@ -77,7 +77,7 @@ impl State {
     ) -> State {
         let key_count = path_map.len();
         State {
-            reachable_keys: HashSet::new(),
+            reachable_keys_per_cursor: (0..4).map(|_| HashSet::new()).collect(),
             min_total_distance: u32::max_value(),
             min_path: LinkedHashSet::new(),
             current_distance: 0,
@@ -128,22 +128,7 @@ fn main() -> MainResult<()> {
     }
 
     display_content_grid(&grid, None);
-    let paths_info = compute_paths(&grid);
-    print_keys(&paths_info.path_map);
-
-    let statics = Statics {
-        doors_to_keypath: paths_info.doors_to_keypath,
-        target_keys_to_keypath: paths_info.target_keys_to_keypath,
-    };
-    let mut state = State::new(start_keys, paths_info.path_map);
-    for (key, key_path) in state.path_map[&'@'].iter() {
-        if key_path.borrow().doors.is_empty() {
-            debug!("Adding reachable key {}", *key);
-            state.reachable_keys.insert(*key);
-        }
-    }
-
-    info!("Key count: {}", state.key_count);
+    let mut paths_info = compute_paths(&grid);
 
     // Add a dummy key, with a 0-long distance to all initial positions
     for k in &start_keys {
@@ -153,10 +138,28 @@ fn main() -> MainResult<()> {
             distance: 0,
             doors: HashSet::new(),
         }));
-        let key_path_map: HashMap<Key, Rc<RefCell<KeyPath>>> = HashMap::new();
+        let mut key_path_map: HashMap<Key, Rc<RefCell<KeyPath>>> = HashMap::new();
         key_path_map.insert('*', key_path);
         paths_info.path_map.insert('*', key_path_map);
     }
+    print_keys(&paths_info.path_map);
+
+    let statics = Statics {
+        doors_to_keypath: paths_info.doors_to_keypath,
+        target_keys_to_keypath: paths_info.target_keys_to_keypath,
+    };
+    let mut state = State::new(start_keys.clone(), paths_info.path_map);
+    for cursor in 0..4 {
+        let start_key = &start_keys[cursor];
+        for (key, key_path) in state.path_map[start_key].iter() {
+            if key_path.borrow().doors.is_empty() {
+                debug!("Adding reachable key {} from {}", *key, start_key);
+                state.reachable_keys_per_cursor[cursor].insert(*key);
+            }
+        }
+    }
+
+    info!("Key count: {}", state.key_count);
 
     // Start with a single choice: start_keys, with a distance of 0
     let distance = get_min_distance(&statics, &mut state, 0, '*', 0);
@@ -235,7 +238,7 @@ fn get_min_distance(
         state.keys.insert(next_key);
         debug!(
             "Exploring key {}, distance: {}; reachable_keys: {:?}, current path: {:?} (distance: {})",
-            next_key, distance_to_key, state.reachable_keys, state.keys, state.current_distance
+            next_key, distance_to_key, state.reachable_keys_per_cursor, state.keys, state.current_distance
         );
         state.keys.pop_back();
     }
@@ -289,19 +292,24 @@ fn get_min_distance(
                 if doors.remove(&next_key) && doors.is_empty() {
                     let new_reachable_key = kp_ref.to;
                     if !state.keys.contains(&new_reachable_key)
-                        && !state.reachable_keys.contains(&new_reachable_key)
+                        && !state.reachable_keys_per_cursor[next_cursor]
+                            .contains(&new_reachable_key)
                     {
                         // A new key is reachable!
                         debug!("New reachable key: {}!", new_reachable_key);
                         added_reachable_keys.push(new_reachable_key);
-                        state.reachable_keys.insert(new_reachable_key);
+                        state.reachable_keys_per_cursor[next_cursor].insert(new_reachable_key);
                     }
                 }
             }
         }
 
+        // The key becomes the new current key for the cursor
+        let previous_cursor_key = state.keys_by_cursor[next_cursor];
+        state.keys_by_cursor[next_cursor] = next_key;
+
         // The key is no longer "reachable", it has been reached already
-        state.reachable_keys.remove(&next_key);
+        state.reachable_keys_per_cursor[next_cursor].remove(&next_key);
 
         // Remove the paths going to that key: we don't need them during this call
         let mut removed_key_paths = vec![];
@@ -322,11 +330,10 @@ fn get_min_distance(
         // Find out which keys are reachable from the current position and the
         // set of keys we have
         // Now we can choose to continue with any of the reachable keys
-        let cursors = 0..4;
         if log_enabled!(Level::Debug) {
             debug!(
                 "Reachable keys: {:?}, next_key: {}, path_map:",
-                state.reachable_keys, next_key
+                state.reachable_keys_per_cursor, next_key
             );
 
             for (k, v) in state.path_map.iter() {
@@ -341,16 +348,25 @@ fn get_min_distance(
                 debug!("    {}", s);
             }
         }
+
         let mut reachable_keys: Vec<_> = state
-            .reachable_keys
+            .reachable_keys_per_cursor
             .iter()
-            .map(|k| (*k, state.path_map[&next_key][k].borrow().distance))
+            .enumerate()
+            .flat_map(|(c, keys)| {
+                let cursor_key = state.keys_by_cursor[c];
+                let state = &state; // ensure state is not moved in the following closure
+                keys.iter().map(move |k| {
+                    let key_path = &state.path_map[&cursor_key][k];
+                    (*k, c, key_path.borrow().distance)
+                })
+            })
             .collect();
-        reachable_keys.sort_by_key(|k| k.1);
+        reachable_keys.sort_by_key(|k| k.2);
         trace!("Reachable keys: {:?}", reachable_keys);
 
-        for (key, distance) in &reachable_keys {
-            get_min_distance(statics, state, *key, *distance);
+        for (key, cursor, distance) in &reachable_keys {
+            get_min_distance(statics, state, *cursor, *key, *distance);
         }
 
         // Before leaving the function, restore the state
@@ -382,11 +398,14 @@ fn get_min_distance(
         // 5. Restore the reachable doors
         for key in added_reachable_keys {
             // key_path.borrow_mut().doors.insert(key);
-            state.reachable_keys.remove(&key);
+            state.reachable_keys_per_cursor[next_cursor].remove(&key);
         }
 
         // 6. The key is reachable again
-        state.reachable_keys.insert(next_key);
+        state.reachable_keys_per_cursor[next_cursor].insert(next_key);
+
+        // 7. Restore the cursor key
+        state.keys_by_cursor[next_cursor] = previous_cursor_key;
     }
 
     state.min_total_distance
