@@ -164,14 +164,19 @@ fn main() -> MainResult<()> {
         target_keys_to_keypath: paths_info.target_keys_to_keypath,
     };
     let mut state = State::new(start_keys.clone(), paths_info.path_map);
-    for (cursor, start_key) in start_keys.iter().enumerate() {
-        state.reachable_keys_per_cursor[cursor].insert(*start_key);
-        for (key, key_path) in state.path_map[start_key].iter() {
-            if key_path.borrow().doors.is_empty() {
-                debug!("Adding reachable key {} from {}", *key, start_key);
-                state.reachable_keys_per_cursor[cursor].insert(*key);
-            }
-        }
+    // for (cursor, start_key) in start_keys.iter().enumerate() {
+    //     state.reachable_keys_per_cursor[cursor].insert(*start_key);
+    //     for (key, key_path) in state.path_map[start_key].iter() {
+    //         if key_path.borrow().doors.is_empty() {
+    //             debug!("Adding reachable key {} from {}", *key, start_key);
+    //             state.reachable_keys_per_cursor[cursor].insert(*key);
+    //         }
+    //     }
+    // }
+
+    for cursor in 0..4 {
+        let key = std::char::from_digit(cursor as u32, 10).unwrap();
+        state.reachable_keys_per_cursor[cursor].insert(key);
     }
 
     info!("Key count: {}", state.key_count);
