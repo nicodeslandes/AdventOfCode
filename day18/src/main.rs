@@ -35,7 +35,7 @@ enum Direction {
 #[derive(Clone)]
 struct KeyPath {
     from: Key,
-    to: Key,
+    to: (u32, Key),
     distance: u32,
     doors: HashSet<Key>,
 }
@@ -153,8 +153,13 @@ fn main() -> MainResult<()> {
             doors: HashSet::new(),
         }));
         let mut key_path_map: HashMap<Key, Rc<RefCell<KeyPath>>> = HashMap::new();
-        key_path_map.insert(init_key, key_path);
+        key_path_map.insert(*start_key, key_path.clone());
         paths_info.path_map.insert(init_key, key_path_map);
+        paths_info
+            .target_keys_to_keypath
+            .get_mut(&start_key)
+            .unwrap()
+            .push(key_path);
     }
 
     print_keys(&paths_info.path_map);
@@ -163,7 +168,11 @@ fn main() -> MainResult<()> {
         doors_to_keypath: paths_info.doors_to_keypath,
         target_keys_to_keypath: paths_info.target_keys_to_keypath,
     };
-    let mut state = State::new(start_keys.clone(), paths_info.path_map);
+
+    let init_keys: Vec<_> = (0..4)
+        .map(|c| std::char::from_digit(c as u32, 10).unwrap())
+        .collect();
+    let mut state = State::new(init_keys, paths_info.path_map);
     // for (cursor, start_key) in start_keys.iter().enumerate() {
     //     state.reachable_keys_per_cursor[cursor].insert(*start_key);
     //     for (key, key_path) in state.path_map[start_key].iter() {
@@ -174,15 +183,14 @@ fn main() -> MainResult<()> {
     //     }
     // }
 
-    for cursor in 0..4 {
-        let key = std::char::from_digit(cursor as u32, 10).unwrap();
+    for (cursor, &key) in start_keys.iter().enumerate() {
         state.reachable_keys_per_cursor[cursor].insert(key);
     }
 
     info!("Key count: {}", state.key_count);
 
     // Start with a single choice: start_keys, with a distance of 0
-    let distance = get_min_distance(&statics, &mut state, 0, '0', 0);
+    let distance = get_min_distance(&statics, &mut state, 0, start_keys[0], 0);
 
     info!(
         "Min distance found in {} ms: {}",
@@ -343,6 +351,11 @@ fn get_min_distance(
             "Looking for key {} in target_keys_to_keypath: {:?}",
             next_key,
             statics.target_keys_to_keypath.keys()
+        );
+        trace!(
+            "target_keys_to_keypath:[{}]: {:?}",
+            next_key,
+            statics.target_keys_to_keypath[&next_key]
         );
         for key_path in &statics.target_keys_to_keypath[&next_key] {
             let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
