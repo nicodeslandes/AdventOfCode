@@ -35,7 +35,7 @@ enum Direction {
 #[derive(Clone)]
 struct KeyPath {
     from: Key,
-    to: (u32, Key),
+    to: Key,
     distance: u32,
     doors: HashSet<Key>,
 }
@@ -68,6 +68,7 @@ struct State {
     keys_by_cursor: Vec<Key>,
     path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
     iteration_count: u32,
+    key_cursors: HashMap<Key, usize>,
 }
 
 impl State {
@@ -76,6 +77,19 @@ impl State {
         path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
     ) -> State {
         let key_count = path_map.len();
+        let start_keys: HashMap<Key, usize> = initial_keys
+            .iter()
+            .enumerate()
+            .map(|(c, k)| (*path_map[k].keys().next().unwrap(), c))
+            .collect();
+
+        let mut key_cursors: HashMap<Key, usize> = HashMap::new();
+        for (start_key, cursor) in start_keys {
+            for k in path_map[&start_key].keys() {
+                key_cursors.insert(*k, cursor);
+            }
+        }
+
         State {
             reachable_keys_per_cursor: (0..4).map(|_| HashSet::new()).collect(),
             min_total_distance: u32::max_value(),
@@ -86,6 +100,7 @@ impl State {
             key_count,
             path_map,
             iteration_count: 0,
+            key_cursors,
         }
     }
 }
@@ -97,7 +112,7 @@ struct Statics {
 
 fn main() -> MainResult<()> {
     simple_logger::init().unwrap();
-    log::set_max_level(LevelFilter::Trace);
+    log::set_max_level(LevelFilter::Info);
     let file_name = env::args().nth(1).expect("Enter a file name");
 
     let (mut grid, initial_pos) = parse_grid(&file_name)?;
@@ -187,6 +202,7 @@ fn main() -> MainResult<()> {
         state.reachable_keys_per_cursor[cursor].insert(key);
     }
 
+    state.key_count -= 4;
     info!("Key count: {}", state.key_count);
 
     // Start with a single choice: start_keys, with a distance of 0
@@ -325,8 +341,11 @@ fn get_min_distance(
                     {
                         // A new key is reachable!
                         debug!("New reachable key: {}!", new_reachable_key);
-                        added_reachable_keys.push(new_reachable_key);
-                        state.reachable_keys_per_cursor[next_cursor].insert(new_reachable_key);
+
+                        // TODO: BUG! The key is not necessarily reachable from the current cursor!
+                        let key_cursor = state.key_cursors[&new_reachable_key];
+                        state.reachable_keys_per_cursor[key_cursor].insert(new_reachable_key);
+                        added_reachable_keys.push((key_cursor, new_reachable_key));
                     }
                 }
             }
@@ -415,6 +434,11 @@ fn get_min_distance(
 
         for (key, cursor, distance) in &reachable_keys {
             get_min_distance(statics, state, *cursor, *key, *distance);
+
+            // If the key is one of the initial start key, no need to attempt other paths
+            if *distance == 0 {
+                break;
+            }
         }
 
         // Before leaving the function, restore the state
@@ -444,9 +468,9 @@ fn get_min_distance(
         state.keys.pop_back();
 
         // 5. Restore the reachable doors
-        for key in added_reachable_keys {
+        for (cursor, key) in added_reachable_keys {
             // key_path.borrow_mut().doors.insert(key);
-            state.reachable_keys_per_cursor[next_cursor].remove(&key);
+            state.reachable_keys_per_cursor[cursor].remove(&key);
         }
 
         // 6. The key is reachable again
