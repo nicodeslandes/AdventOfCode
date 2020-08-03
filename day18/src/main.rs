@@ -128,7 +128,7 @@ fn main() -> MainResult<()> {
     }
 
     display_content_grid(&grid, None);
-    let paths_info = compute_paths(&grid);
+    let mut paths_info = compute_paths(&grid);
 
     // // Add a dummy key, with a 0-long distance to all initial positions
     // for k in &start_keys {
@@ -142,6 +142,21 @@ fn main() -> MainResult<()> {
     //     key_path_map.insert('*', key_path);
     //     paths_info.path_map.insert('*', key_path_map);
     // }
+
+    // Set initial state with keys 0,1,2,3 going to their respective start keys with a 0 distance
+    for (cursor, start_key) in start_keys.iter().enumerate() {
+        let init_key = std::char::from_digit(cursor as u32, 10).unwrap();
+        let key_path = Rc::new(RefCell::new(KeyPath {
+            from: init_key,
+            to: *start_key,
+            distance: 0,
+            doors: HashSet::new(),
+        }));
+        let mut key_path_map: HashMap<Key, Rc<RefCell<KeyPath>>> = HashMap::new();
+        key_path_map.insert(init_key, key_path);
+        paths_info.path_map.insert(init_key, key_path_map);
+    }
+
     print_keys(&paths_info.path_map);
 
     let statics = Statics {
@@ -162,7 +177,7 @@ fn main() -> MainResult<()> {
     info!("Key count: {}", state.key_count);
 
     // Start with a single choice: start_keys, with a distance of 0
-    let distance = get_min_distance(&statics, &mut state, 0, start_keys[0], 0);
+    let distance = get_min_distance(&statics, &mut state, 0, '0', 0);
 
     info!(
         "Min distance found in {} ms: {}",
