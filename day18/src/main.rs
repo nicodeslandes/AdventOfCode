@@ -69,6 +69,7 @@ struct State {
     path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
     iteration_count: u32,
     key_cursors: HashMap<Key, usize>,
+    cache: HashSet<String>,
 }
 
 impl State {
@@ -101,6 +102,7 @@ impl State {
             path_map,
             iteration_count: 0,
             key_cursors,
+            cache: HashSet::new(),
         }
     }
 }
@@ -270,6 +272,26 @@ fn compute_paths(grid: &ContentGrid) -> PathsInfo {
     }
 }
 
+fn build_cache_key(
+    path: &LinkedHashSet<Key>,
+    cursor_keys: &[Key],
+    next_cursor: usize,
+    next_key: Key,
+) -> String {
+    let mut chars: Vec<_> = path.iter().collect();
+    chars.sort();
+    chars.push(&'-');
+    for c in 0..4 {
+        chars.push(if c == next_cursor {
+            &next_key
+        } else {
+            &cursor_keys[c]
+        })
+    }
+    // chars.push(&key);
+    chars.into_iter().collect()
+}
+
 fn get_min_distance(
     statics: &Statics,
     state: &mut State,
@@ -277,6 +299,15 @@ fn get_min_distance(
     next_key: Key,
     distance_to_key: u32,
 ) -> u32 {
+    // Check the cache
+    // TODO: avoid keys copy?
+    let cache_key = build_cache_key(&state.keys, &state.keys_by_cursor, next_cursor, next_key);
+    info!("Cache key: {}", cache_key);
+    if state.cache.contains(&cache_key) {
+        info!("Skipping!");
+        return state.min_total_distance;
+    }
+
     state.current_distance += distance_to_key;
     if log_enabled!(Level::Debug) {
         state.keys.insert(next_key);
@@ -288,11 +319,11 @@ fn get_min_distance(
     }
 
     state.iteration_count += 1;
-    if state.iteration_count == 10_000_000 {
+    if state.iteration_count == 10_000 {
         state.iteration_count = 0;
         state.keys.insert(next_key);
         info!(
-            "Current path: {:?} (distance: {}; min_distance: {}",
+            "Current path: {:?} (distance: {}; min_distance: {})",
             state.keys, state.current_distance, state.min_total_distance
         );
         state.keys.pop_back();
@@ -300,6 +331,7 @@ fn get_min_distance(
 
     // If this key takes us past the current min path length, don't go further
     if state.current_distance >= state.min_total_distance {
+        state.cache.insert(cache_key);
         state.current_distance -= distance_to_key;
         return state.min_total_distance;
     }
@@ -413,7 +445,7 @@ fn get_min_distance(
         }
 
         trace!("Keys by cursor: {:?}", state.keys_by_cursor);
-        let mut reachable_keys: Vec<_> = state
+        let reachable_keys: Vec<_> = state
             .reachable_keys_per_cursor
             .iter()
             .enumerate()
@@ -429,7 +461,7 @@ fn get_min_distance(
                     })
             })
             .collect();
-        reachable_keys.sort_by_key(|k| k.2);
+        //reachable_keys.sort_by_key(|k| k.2);
         trace!("Reachable keys: {:?}", reachable_keys);
 
         for (key, cursor, distance) in &reachable_keys {
@@ -480,6 +512,7 @@ fn get_min_distance(
         state.keys_by_cursor[next_cursor] = previous_cursor_key;
     }
 
+    state.cache.insert(cache_key);
     state.min_total_distance
 }
 
