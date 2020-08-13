@@ -67,7 +67,7 @@ struct State {
     keys: LinkedHashSet<Key>,
     path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
     iteration_count: u32,
-    cache: HashSet<String>,
+    cache: HashMap<String, u32>,
 }
 
 impl State {
@@ -82,7 +82,7 @@ impl State {
             key_count,
             path_map,
             iteration_count: 0,
-            cache: HashSet::new(),
+            cache: HashMap::new(),
         }
     }
 }
@@ -201,11 +201,19 @@ fn get_min_distance(
     // TODO: avoid keys copy?
     let cache_key = build_cache_key(&state.keys, next_key);
     info!("Cache key: {}", cache_key);
-    if state.cache.contains(&cache_key) {
-        info!("Skipping!");
+    if let Some(cached_distance) = state.cache.get(&cache_key) {
+        info!(
+            "Already have min distance for this key: {}!",
+            cached_distance
+        );
+        if state.current_distance + cached_distance < state.min_total_distance {
+            state.min_total_distance = state.current_distance + cached_distance;
+            info!("Found a new min distance! {}", state.min_total_distance);
+        }
         return state.min_total_distance;
     }
 
+    let initial_distance = state.current_distance;
     state.current_distance += distance_to_key;
     if log_enabled!(Level::Debug) {
         state.keys.insert(next_key);
@@ -229,7 +237,9 @@ fn get_min_distance(
 
     // If this key takes us past the current min path length, don't go further
     if state.current_distance >= state.min_total_distance {
-        state.cache.insert(cache_key);
+        state
+            .cache
+            .insert(cache_key, initial_distance - state.current_distance);
         state.current_distance -= distance_to_key;
         return state.min_total_distance;
     }
@@ -365,7 +375,7 @@ fn get_min_distance(
         state.reachable_keys.insert(next_key);
     }
 
-    state.cache.insert(cache_key);
+    state.cache[&cache_key];
     state.min_total_distance
 }
 
