@@ -92,7 +92,7 @@ struct Statics {
 
 fn main() -> MainResult<()> {
     simple_logger::init().unwrap();
-    log::set_max_level(LevelFilter::Info);
+    log::set_max_level(LevelFilter::Warn);
     let file_name = env::args().nth(1).expect("Enter a file name");
 
     let (grid, initial_pos) = parse_grid(&file_name)?;
@@ -230,139 +230,122 @@ fn get_min_distance(
 
     // Update the state
     state.keys.insert(next_key);
-    let min_distance = if state.keys.len() == state.key_count {
-        info!(
-            "New complete path found! {:?} distance: {}",
-            state.keys, state.current_distance
+    let mut added_reachable_keys = vec![];
+
+    // "Open" the door for the new key, ie update all the paths that contain it and remove
+    // the door from them
+    if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
+        for kp in key_paths.iter() {
+            trace!(
+                "Removing door {} from {:?}; doors:{:?}",
+                next_key,
+                kp.borrow(),
+                kp.borrow().doors
+            );
+            let mut kp_ref = kp.borrow_mut();
+            let doors = &mut kp_ref.doors;
+            if doors.remove(&next_key) && doors.is_empty() {
+                let new_reachable_key = kp_ref.to;
+                if !state.keys.contains(&new_reachable_key)
+                    && !state.reachable_keys.contains(&new_reachable_key)
+                {
+                    // A new key is reachable!
+                    debug!("New reachable key: {}!", new_reachable_key);
+                    added_reachable_keys.push(new_reachable_key);
+                    state.reachable_keys.insert(new_reachable_key);
+                }
+            }
+        }
+    }
+
+    // The key is no longer "reachable", it has been reached already
+    state.reachable_keys.remove(&next_key);
+
+    // Remove the paths going to that key: we don't need them during this call
+    let mut removed_key_paths = vec![];
+    for key_path in &statics.target_keys_to_keypath[&next_key] {
+        let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+        trace!(
+            "Removing key {} from Key Path {:?}",
+            next_key,
+            from_key_paths
+        );
+        if let Some(kp) = from_key_paths.remove(&next_key) {
+            removed_key_paths.push(kp);
+        }
+    }
+
+    // Explore the possible paths
+
+    // Find out which keys are reachable from the current position and the
+    // set of keys we have
+    // Now we can choose to continue with any of the reachable keys
+    if log_enabled!(Level::Debug) {
+        debug!(
+            "Reachable keys: {:?}, next_key: {}, path_map:",
+            state.reachable_keys, next_key
         );
 
-        state.min_total_distance = u32::min(state.min_total_distance, state.current_distance);
-
-        // Revert state changes
-        state.current_distance -= distance_to_key;
-        state.keys.pop_back();
-
-        // This is an "end" key, so there's no further distance from it
-        0
-    } else {
-        let mut added_reachable_keys = vec![];
-
-        // "Open" the door for the new key, ie update all the paths that contain it and remove
-        // the door from them
-        if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
-            for kp in key_paths.iter() {
-                trace!(
-                    "Removing door {} from {:?}; doors:{:?}",
-                    next_key,
-                    kp.borrow(),
-                    kp.borrow().doors
-                );
-                let mut kp_ref = kp.borrow_mut();
-                let doors = &mut kp_ref.doors;
-                if doors.remove(&next_key) && doors.is_empty() {
-                    let new_reachable_key = kp_ref.to;
-                    if !state.keys.contains(&new_reachable_key)
-                        && !state.reachable_keys.contains(&new_reachable_key)
-                    {
-                        // A new key is reachable!
-                        debug!("New reachable key: {}!", new_reachable_key);
-                        added_reachable_keys.push(new_reachable_key);
-                        state.reachable_keys.insert(new_reachable_key);
-                    }
+        for (k, v) in state.path_map.iter() {
+            debug!("{}:", k);
+            let mut s = String::new();
+            for (j, (kk, kp)) in v.iter().enumerate() {
+                if j > 0 {
+                    s.push_str("; ");
                 }
+                write!(&mut s, "{}: [{:?}]", kk, kp.borrow()).unwrap();
             }
+            debug!("    {}", s);
         }
+    }
+    let mut reachable_keys: Vec<_> = state
+        .reachable_keys
+        .iter()
+        .map(|k| (*k, state.path_map[&next_key][k].borrow().distance))
+        .collect();
+    reachable_keys.sort_by_key(|k| k.1);
+    trace!("Reachable keys: {:?}", reachable_keys);
 
-        // The key is no longer "reachable", it has been reached already
-        state.reachable_keys.remove(&next_key);
+    let min_distance = reachable_keys
+        .iter()
+        .map(|(key, distance)| get_min_distance(statics, state, *key, *distance) + distance)
+        .min()
+        .unwrap_or_default();
 
-        // Remove the paths going to that key: we don't need them during this call
-        let mut removed_key_paths = vec![];
-        for key_path in &statics.target_keys_to_keypath[&next_key] {
-            let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+    // Before leaving the function, restore the state
+    // 1. Close the door again, ie add the door to all the keypath
+    if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
+        for kp in key_paths {
             trace!(
-                "Removing key {} from Key Path {:?}",
+                "Adding back door {} to key path {:?}",
                 next_key,
-                from_key_paths
+                kp.borrow()
             );
-            if let Some(kp) = from_key_paths.remove(&next_key) {
-                removed_key_paths.push(kp);
-            }
+            kp.borrow_mut().doors.insert(next_key);
         }
+    }
 
-        // Explore the possible paths
+    // 2. Add back the paths going to that key
+    for key_path in removed_key_paths {
+        let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+        let to = key_path.borrow().to;
+        from_key_paths.insert(to, key_path);
+    }
 
-        // Find out which keys are reachable from the current position and the
-        // set of keys we have
-        // Now we can choose to continue with any of the reachable keys
-        if log_enabled!(Level::Debug) {
-            debug!(
-                "Reachable keys: {:?}, next_key: {}, path_map:",
-                state.reachable_keys, next_key
-            );
+    // 3. Restore the current_distance
+    state.current_distance -= distance_to_key;
 
-            for (k, v) in state.path_map.iter() {
-                debug!("{}:", k);
-                let mut s = String::new();
-                for (j, (kk, kp)) in v.iter().enumerate() {
-                    if j > 0 {
-                        s.push_str("; ");
-                    }
-                    write!(&mut s, "{}: [{:?}]", kk, kp.borrow()).unwrap();
-                }
-                debug!("    {}", s);
-            }
-        }
-        let mut reachable_keys: Vec<_> = state
-            .reachable_keys
-            .iter()
-            .map(|k| (*k, state.path_map[&next_key][k].borrow().distance))
-            .collect();
-        reachable_keys.sort_by_key(|k| k.1);
-        trace!("Reachable keys: {:?}", reachable_keys);
+    // 4. Restore the key set
+    state.keys.pop_back();
 
-        let min_distance = reachable_keys
-            .iter()
-            .map(|(key, distance)| get_min_distance(statics, state, *key, *distance) + distance)
-            .min()
-            .unwrap_or(u32::MAX);
+    // 5. Restore the reachable doors
+    for key in added_reachable_keys {
+        // key_path.borrow_mut().doors.insert(key);
+        state.reachable_keys.remove(&key);
+    }
 
-        // Before leaving the function, restore the state
-        // 1. Close the door again, ie add the door to all the keypath
-        if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
-            for kp in key_paths {
-                trace!(
-                    "Adding back door {} to key path {:?}",
-                    next_key,
-                    kp.borrow()
-                );
-                kp.borrow_mut().doors.insert(next_key);
-            }
-        }
-
-        // 2. Add back the paths going to that key
-        for key_path in removed_key_paths {
-            let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
-            let to = key_path.borrow().to;
-            from_key_paths.insert(to, key_path);
-        }
-
-        // 3. Restore the current_distance
-        state.current_distance -= distance_to_key;
-
-        // 4. Restore the key set
-        state.keys.pop_back();
-
-        // 5. Restore the reachable doors
-        for key in added_reachable_keys {
-            // key_path.borrow_mut().doors.insert(key);
-            state.reachable_keys.remove(&key);
-        }
-
-        // 6. The key is reachable again
-        state.reachable_keys.insert(next_key);
-        min_distance
-    };
+    // 6. The key is reachable again
+    state.reachable_keys.insert(next_key);
 
     debug!(
         "Inserting new cached distance for key {}: {}",
