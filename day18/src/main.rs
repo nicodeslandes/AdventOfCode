@@ -61,7 +61,6 @@ type PathMap = HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>;
 struct State {
     key_count: usize,
     min_total_distance: u32,
-    min_path: LinkedHashSet<Key>,
     current_distance: u32,
     reachable_keys: HashSet<Key>,
     keys: LinkedHashSet<Key>,
@@ -76,7 +75,6 @@ impl State {
         State {
             reachable_keys: HashSet::new(),
             min_total_distance: u32::max_value(),
-            min_path: LinkedHashSet::new(),
             current_distance: 0,
             keys: LinkedHashSet::new(),
             key_count,
@@ -121,14 +119,14 @@ fn main() -> MainResult<()> {
     // Start with a single choice: '@', with a distance of 0
     let distance = get_min_distance(&statics, &mut state, '@', 0);
 
-    info!(
+    println!(
         "Min distance found in {} ms: {}",
         (Instant::now() - start)
             .as_millis()
             .to_formatted_string(&Locale::en),
         distance
     );
-    info!("Path: {:?}", state.min_path);
+    info!("Path: ?");
     Ok(())
 }
 
@@ -200,20 +198,19 @@ fn get_min_distance(
     // Check the cache
     // TODO: avoid keys copy?
     let cache_key = build_cache_key(&state.keys, next_key);
-    info!("Cache key: {}", cache_key);
+    debug!("Cache key: {}", cache_key);
     if let Some(cached_distance) = state.cache.get(&cache_key) {
-        info!(
-            "Already have min distance for this key: {}!",
-            cached_distance
+        debug!(
+            "Already have min distance for this key: {}! Current distance: {}",
+            cached_distance, state.current_distance
         );
-        if state.current_distance + cached_distance < state.min_total_distance {
-            state.min_total_distance = state.current_distance + cached_distance;
-            info!("Found a new min distance! {}", state.min_total_distance);
-        }
-        return state.min_total_distance;
+        // if state.current_distance + cached_distance < state.min_total_distance {
+        //     state.min_total_distance = state.current_distance + cached_distance;
+        //     info!("Found a new min distance! {}", state.min_total_distance);
+        // }
+        return *cached_distance + distance_to_key;
     }
 
-    let initial_distance = state.current_distance;
     state.current_distance += distance_to_key;
     if log_enabled!(Level::Debug) {
         state.keys.insert(next_key);
@@ -235,29 +232,22 @@ fn get_min_distance(
         state.keys.pop_back();
     }
 
-    // If this key takes us past the current min path length, don't go further
-    if state.current_distance >= state.min_total_distance {
-        state
-            .cache
-            .insert(cache_key, initial_distance - state.current_distance);
-        state.current_distance -= distance_to_key;
-        return state.min_total_distance;
-    }
-
-    // Otherwise, update the state
+    // Update the state
     state.keys.insert(next_key);
-    if state.keys.len() == state.key_count {
+    let min_distance = if state.keys.len() == state.key_count {
         info!(
-            "New min path found! {:?} distance: {}",
+            "New complete path found! {:?} distance: {}",
             state.keys, state.current_distance
         );
 
-        state.min_total_distance = state.current_distance;
-        state.min_path = state.keys.clone();
+        state.min_total_distance = u32::min(state.min_total_distance, state.current_distance);
 
         // Revert state changes
         state.current_distance -= distance_to_key;
         state.keys.pop_back();
+
+        // This is an "end" key, so there's no further distance from it
+        0
     } else {
         let mut added_reachable_keys = vec![];
 
@@ -335,15 +325,17 @@ fn get_min_distance(
         reachable_keys.sort_by_key(|k| k.1);
         trace!("Reachable keys: {:?}", reachable_keys);
 
-        for (key, distance) in &reachable_keys {
-            get_min_distance(statics, state, *key, *distance);
-        }
+        let min_distance = reachable_keys
+            .iter()
+            .map(|(key, distance)| get_min_distance(statics, state, *key, *distance))
+            .min()
+            .unwrap_or(u32::MAX);
 
         // Before leaving the function, restore the state
         // 1. Close the door again, ie add the door to all the keypath
         if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
             for kp in key_paths {
-                debug!(
+                trace!(
                     "Adding back door {} to key path {:?}",
                     next_key,
                     kp.borrow()
@@ -373,10 +365,15 @@ fn get_min_distance(
 
         // 6. The key is reachable again
         state.reachable_keys.insert(next_key);
-    }
+        min_distance
+    };
 
-    state.cache[&cache_key];
-    state.min_total_distance
+    debug!(
+        "Inserting new cached distance for key {}: {}",
+        cache_key, min_distance
+    );
+    state.cache.insert(cache_key, min_distance);
+    min_distance + distance_to_key
 }
 
 fn get_keys(grid: &ContentGrid) -> Vec<(Pos, Key)> {
