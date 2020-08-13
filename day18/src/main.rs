@@ -196,7 +196,6 @@ fn get_min_distance(
     distance_to_key: u32,
 ) -> u32 {
     // Check the cache
-    // TODO: avoid keys copy?
     let cache_key = build_cache_key(&state.keys, next_key);
     debug!("Cache key: {}", cache_key);
     if let Some(cached_distance) = state.cache.get(&cache_key) {
@@ -204,11 +203,8 @@ fn get_min_distance(
             "Already have min distance for this key: {}! Current distance: {}",
             cached_distance, state.current_distance
         );
-        // if state.current_distance + cached_distance < state.min_total_distance {
-        //     state.min_total_distance = state.current_distance + cached_distance;
-        //     info!("Found a new min distance! {}", state.min_total_distance);
-        // }
-        return *cached_distance + distance_to_key;
+
+        return *cached_distance;
     }
 
     state.current_distance += distance_to_key;
@@ -327,7 +323,7 @@ fn get_min_distance(
 
         let min_distance = reachable_keys
             .iter()
-            .map(|(key, distance)| get_min_distance(statics, state, *key, *distance))
+            .map(|(key, distance)| get_min_distance(statics, state, *key, *distance) + distance)
             .min()
             .unwrap_or(u32::MAX);
 
@@ -373,7 +369,7 @@ fn get_min_distance(
         cache_key, min_distance
     );
     state.cache.insert(cache_key, min_distance);
-    min_distance + distance_to_key
+    min_distance
 }
 
 fn get_keys(grid: &ContentGrid) -> Vec<(Pos, Key)> {
