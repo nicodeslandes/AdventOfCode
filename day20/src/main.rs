@@ -107,20 +107,8 @@ fn main() -> MainResult<()> {
         }
     }
 
-    for y in 0..y_max {
-        for x in 0..x_max {
-            if current == Pos(x, y) {
-                print!("x");
-            } else {
-                match state[x][y] {
-                    State::Wall => print!("#"),
-                    State::Visited(n) => print!("{}", n % 10),
-                    _ => print!(" "),
-                }
-            }
-        }
-        println!();
-    }
+    display_content_grid(&state, (x_max, y_max), Some(current));
+
 
     // loop {
     //     match grid.get(&current){
@@ -131,6 +119,39 @@ fn main() -> MainResult<()> {
     // }
 
     Ok(())
+}
+
+type ContentGrid = Vec<Vec<State>>;
+type Grid<T> = Vec<Vec<T>>;
+
+fn display_content_grid(grid: &ContentGrid, dim: (usize, usize), current_pos: Option<Pos>) {
+    display_grid(grid, dim, current_pos, |_pos, s| match s {
+        Some(State::None) | None => String::from("  "),
+        Some(State::Visited(d)) => format!("{:2}", d % 100),
+        Some(State::Wall) => String::from("██"),
+    });
+}
+
+
+fn display_grid<T>(state: &Grid<T>, dim: (usize, usize), current: Option<Pos>, display: impl Fn(Pos, Option<&T>) -> String) {
+    let (x_max, y_max) = dim;
+    for y in 0..y_max {
+        for x in 0..x_max {
+            let pos = Pos(x, y);
+            if let Some(p) = current {
+                if p == pos {
+                    print!("@ ");
+                    continue;
+                }
+            }
+            print!("{}", display(pos, Some(&state[x][y])));
+            if current == Some(pos) {
+                print!("x");
+            } else {
+            }
+        }
+        println!();
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
