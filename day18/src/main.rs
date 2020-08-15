@@ -423,7 +423,7 @@ fn get_min_distance(
     }
 
     trace!("Keys by cursor: {:?}", state.keys_by_cursor);
-    let mut reachable_keys: Vec<_> = state
+    let reachable_keys: Vec<_> = state
         .reachable_keys_per_cursor
         .iter()
         .enumerate()
@@ -439,7 +439,7 @@ fn get_min_distance(
                 })
         })
         .collect();
-    reachable_keys.sort_by_key(|k| k.2);
+    //reachable_keys.sort_by_key(|k| k.2);
     trace!("Reachable keys: {:?}", reachable_keys);
 
     let min_distance = reachable_keys
