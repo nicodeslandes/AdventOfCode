@@ -61,7 +61,6 @@ type PathMap = HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>;
 struct State {
     key_count: usize,
     min_total_distance: u32,
-    min_path: LinkedHashSet<Key>,
     current_distance: u32,
     reachable_keys_per_cursor: Vec<HashSet<Key>>,
     keys: LinkedHashSet<Key>,
@@ -69,7 +68,7 @@ struct State {
     path_map: HashMap<Key, HashMap<Key, Rc<RefCell<KeyPath>>>>,
     iteration_count: u32,
     key_cursors: HashMap<Key, usize>,
-    cache: HashSet<String>,
+    cache: HashMap<String, u32>,
 }
 
 impl State {
@@ -94,7 +93,6 @@ impl State {
         State {
             reachable_keys_per_cursor: (0..4).map(|_| HashSet::new()).collect(),
             min_total_distance: u32::max_value(),
-            min_path: LinkedHashSet::new(),
             current_distance: 0,
             keys_by_cursor: initial_keys,
             keys: LinkedHashSet::new(),
@@ -102,7 +100,7 @@ impl State {
             path_map,
             iteration_count: 0,
             key_cursors,
-            cache: HashSet::new(),
+            cache: HashMap::new(),
         }
     }
 }
@@ -114,7 +112,7 @@ struct Statics {
 
 fn main() -> MainResult<()> {
     simple_logger::init().unwrap();
-    log::set_max_level(LevelFilter::Info);
+    log::set_max_level(LevelFilter::Warn);
     let file_name = env::args().nth(1).expect("Enter a file name");
 
     let (mut grid, initial_pos) = parse_grid(&file_name)?;
@@ -210,14 +208,14 @@ fn main() -> MainResult<()> {
     // Start with a single choice: start_keys, with a distance of 0
     let distance = get_min_distance(&statics, &mut state, 0, start_keys[0], 0);
 
-    info!(
+    println!(
         "Min distance found in {} ms: {}",
         (Instant::now() - start)
             .as_millis()
             .to_formatted_string(&Locale::en),
         distance
     );
-    info!("Path: {:?}", state.min_path);
+    info!("Path: ?");
     Ok(())
 }
 
@@ -281,12 +279,9 @@ fn build_cache_key(
     let mut chars: Vec<_> = path.iter().collect();
     chars.sort();
     chars.push(&'-');
-    for c in 0..4 {
-        chars.push(if c == next_cursor {
-            &next_key
-        } else {
-            &cursor_keys[c]
-        })
+    for (c, key) in cursor_keys.iter().enumerate() {
+        let ch = if c == next_cursor { &next_key } else { key };
+        chars.push(ch);
     }
     // chars.push(&key);
     chars.into_iter().collect()
@@ -302,10 +297,14 @@ fn get_min_distance(
     // Check the cache
     // TODO: avoid keys copy?
     let cache_key = build_cache_key(&state.keys, &state.keys_by_cursor, next_cursor, next_key);
-    info!("Cache key: {}", cache_key);
-    if state.cache.contains(&cache_key) {
-        info!("Skipping!");
-        return state.min_total_distance;
+    debug!("Cache key: {}", cache_key);
+    if let Some(cached_distance) = state.cache.get(&cache_key) {
+        debug!(
+            "Already have min distance for this key: {}! Current distance: {}",
+            cached_distance, state.current_distance
+        );
+
+        return *cached_distance;
     }
 
     state.current_distance += distance_to_key;
@@ -329,191 +328,172 @@ fn get_min_distance(
         state.keys.pop_back();
     }
 
-    // If this key takes us past the current min path length, don't go further
-    if state.current_distance >= state.min_total_distance {
-        state.cache.insert(cache_key);
-        state.current_distance -= distance_to_key;
-        return state.min_total_distance;
-    }
-
-    // Otherwise, update the state
+    // Update the state
     state.keys.insert(next_key);
-    if state.keys.len() == state.key_count {
-        info!(
-            "New min path found! {:?} distance: {}",
-            state.keys, state.current_distance
-        );
+    let mut added_reachable_keys = vec![];
 
-        state.min_total_distance = state.current_distance;
-        state.min_path = state.keys.clone();
-
-        // Revert state changes
-        state.current_distance -= distance_to_key;
-        state.keys.pop_back();
-    } else {
-        let mut added_reachable_keys = vec![];
-
-        // "Open" the door for the new key, ie update all the paths that contain it and remove
-        // the door from them
-        if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
-            for kp in key_paths.iter() {
-                trace!(
-                    "Removing door {} from {:?}; doors:{:?}",
-                    next_key,
-                    kp.borrow(),
-                    kp.borrow().doors
-                );
-                let mut kp_ref = kp.borrow_mut();
-                let doors = &mut kp_ref.doors;
-                if doors.remove(&next_key) && doors.is_empty() {
-                    let new_reachable_key = kp_ref.to;
-                    if !state.keys.contains(&new_reachable_key)
-                        && !state.reachable_keys_per_cursor[next_cursor]
-                            .contains(&new_reachable_key)
-                    {
-                        // A new key is reachable!
-                        debug!("New reachable key: {}!", new_reachable_key);
-
-                        // TODO: BUG! The key is not necessarily reachable from the current cursor!
-                        let key_cursor = state.key_cursors[&new_reachable_key];
-                        state.reachable_keys_per_cursor[key_cursor].insert(new_reachable_key);
-                        added_reachable_keys.push((key_cursor, new_reachable_key));
-                    }
-                }
-            }
-        }
-
-        // The key becomes the new current key for the cursor
-        let previous_cursor_key = state.keys_by_cursor[next_cursor];
-        trace!(
-            "Key for cursor {} goes from {} to {}",
-            next_cursor,
-            previous_cursor_key,
-            next_key
-        );
-        state.keys_by_cursor[next_cursor] = next_key;
-
-        // The key is no longer "reachable", it has been reached already
-        state.reachable_keys_per_cursor[next_cursor].remove(&next_key);
-
-        // Remove the paths going to that key: we don't need them during this call
-        let mut removed_key_paths = vec![];
-        trace!(
-            "Looking for key {} in target_keys_to_keypath: {:?}",
-            next_key,
-            statics.target_keys_to_keypath.keys()
-        );
-        trace!(
-            "target_keys_to_keypath:[{}]: {:?}",
-            next_key,
-            statics.target_keys_to_keypath[&next_key]
-        );
-        for key_path in &statics.target_keys_to_keypath[&next_key] {
-            let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+    // "Open" the door for the new key, ie update all the paths that contain it and remove
+    // the door from them
+    if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
+        for kp in key_paths.iter() {
             trace!(
-                "Removing key {} from Key Path {:?}",
+                "Removing door {} from {:?}; doors:{:?}",
                 next_key,
-                from_key_paths
+                kp.borrow(),
+                kp.borrow().doors
             );
-            if let Some(kp) = from_key_paths.remove(&next_key) {
-                removed_key_paths.push(kp);
-            }
-        }
+            let mut kp_ref = kp.borrow_mut();
+            let doors = &mut kp_ref.doors;
+            if doors.remove(&next_key) && doors.is_empty() {
+                let new_reachable_key = kp_ref.to;
+                if !state.keys.contains(&new_reachable_key)
+                    && !state.reachable_keys_per_cursor[next_cursor].contains(&new_reachable_key)
+                {
+                    // A new key is reachable!
+                    debug!("New reachable key: {}!", new_reachable_key);
 
-        // Explore the possible paths
-
-        // Find out which keys are reachable from the current position and the
-        // set of keys we have
-        // Now we can choose to continue with any of the reachable keys
-        if log_enabled!(Level::Debug) {
-            debug!(
-                "Reachable keys: {:?}, next_key: {}, path_map:",
-                state.reachable_keys_per_cursor, next_key
-            );
-
-            for (k, v) in state.path_map.iter() {
-                debug!("{}:", k);
-                let mut s = String::new();
-                for (j, (kk, kp)) in v.iter().enumerate() {
-                    if j > 0 {
-                        s.push_str("; ");
-                    }
-                    write!(&mut s, "{}: [{:?}]", kk, kp.borrow()).unwrap();
+                    // TODO: BUG! The key is not necessarily reachable from the current cursor!
+                    let key_cursor = state.key_cursors[&new_reachable_key];
+                    state.reachable_keys_per_cursor[key_cursor].insert(new_reachable_key);
+                    added_reachable_keys.push((key_cursor, new_reachable_key));
                 }
-                debug!("    {}", s);
             }
         }
-
-        trace!("Keys by cursor: {:?}", state.keys_by_cursor);
-        let reachable_keys: Vec<_> = state
-            .reachable_keys_per_cursor
-            .iter()
-            .enumerate()
-            .flat_map(|(c, keys)| {
-                let cursor_key = state.keys_by_cursor[c];
-                let state = &state; // ensure state is not moved in the following closure
-                keys.iter()
-                    //.filter(move |k| **k != cursor_key)
-                    .map(move |k| {
-                        trace!("Looking for key path from {} to {}", cursor_key, k);
-                        let key_path = &state.path_map[&cursor_key][k];
-                        (*k, c, key_path.borrow().distance)
-                    })
-            })
-            .collect();
-        //reachable_keys.sort_by_key(|k| k.2);
-        trace!("Reachable keys: {:?}", reachable_keys);
-
-        for (key, cursor, distance) in &reachable_keys {
-            get_min_distance(statics, state, *cursor, *key, *distance);
-
-            // If the key is one of the initial start key, no need to attempt other paths
-            if *distance == 0 {
-                break;
-            }
-        }
-
-        // Before leaving the function, restore the state
-        // 1. Close the door again, ie add the door to all the keypath
-        if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
-            for kp in key_paths {
-                debug!(
-                    "Adding back door {} to key path {:?}",
-                    next_key,
-                    kp.borrow()
-                );
-                kp.borrow_mut().doors.insert(next_key);
-            }
-        }
-
-        // 2. Add back the paths going to that key
-        for key_path in removed_key_paths {
-            let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
-            let to = key_path.borrow().to;
-            from_key_paths.insert(to, key_path);
-        }
-
-        // 3. Restore the current_distance
-        state.current_distance -= distance_to_key;
-
-        // 4. Restore the key set
-        state.keys.pop_back();
-
-        // 5. Restore the reachable doors
-        for (cursor, key) in added_reachable_keys {
-            // key_path.borrow_mut().doors.insert(key);
-            state.reachable_keys_per_cursor[cursor].remove(&key);
-        }
-
-        // 6. The key is reachable again
-        state.reachable_keys_per_cursor[next_cursor].insert(next_key);
-
-        // 7. Restore the cursor key
-        state.keys_by_cursor[next_cursor] = previous_cursor_key;
     }
 
-    state.cache.insert(cache_key);
-    state.min_total_distance
+    // The key becomes the new current key for the cursor
+    let previous_cursor_key = state.keys_by_cursor[next_cursor];
+    trace!(
+        "Key for cursor {} goes from {} to {}",
+        next_cursor,
+        previous_cursor_key,
+        next_key
+    );
+    state.keys_by_cursor[next_cursor] = next_key;
+
+    // The key is no longer "reachable", it has been reached already
+    state.reachable_keys_per_cursor[next_cursor].remove(&next_key);
+
+    // Remove the paths going to that key: we don't need them during this call
+    let mut removed_key_paths = vec![];
+    trace!(
+        "Looking for key {} in target_keys_to_keypath: {:?}",
+        next_key,
+        statics.target_keys_to_keypath.keys()
+    );
+    trace!(
+        "target_keys_to_keypath:[{}]: {:?}",
+        next_key,
+        statics.target_keys_to_keypath[&next_key]
+    );
+    for key_path in &statics.target_keys_to_keypath[&next_key] {
+        let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+        trace!(
+            "Removing key {} from Key Path {:?}",
+            next_key,
+            from_key_paths
+        );
+        if let Some(kp) = from_key_paths.remove(&next_key) {
+            removed_key_paths.push(kp);
+        }
+    }
+
+    // Explore the possible paths
+
+    // Find out which keys are reachable from the current position and the
+    // set of keys we have
+    // Now we can choose to continue with any of the reachable keys
+    if log_enabled!(Level::Debug) {
+        debug!(
+            "Reachable keys: {:?}, next_key: {}, path_map:",
+            state.reachable_keys_per_cursor, next_key
+        );
+
+        for (k, v) in state.path_map.iter() {
+            debug!("{}:", k);
+            let mut s = String::new();
+            for (j, (kk, kp)) in v.iter().enumerate() {
+                if j > 0 {
+                    s.push_str("; ");
+                }
+                write!(&mut s, "{}: [{:?}]", kk, kp.borrow()).unwrap();
+            }
+            debug!("    {}", s);
+        }
+    }
+
+    trace!("Keys by cursor: {:?}", state.keys_by_cursor);
+    let mut reachable_keys: Vec<_> = state
+        .reachable_keys_per_cursor
+        .iter()
+        .enumerate()
+        .flat_map(|(c, keys)| {
+            let cursor_key = state.keys_by_cursor[c];
+            let state = &state; // ensure state is not moved in the following closure
+            keys.iter()
+                //.filter(move |k| **k != cursor_key)
+                .map(move |k| {
+                    trace!("Looking for key path from {} to {}", cursor_key, k);
+                    let key_path = &state.path_map[&cursor_key][k];
+                    (*k, c, key_path.borrow().distance)
+                })
+        })
+        .collect();
+    reachable_keys.sort_by_key(|k| k.2);
+    trace!("Reachable keys: {:?}", reachable_keys);
+
+    let min_distance = reachable_keys
+        .iter()
+        .map(|(key, cursor, distance)| {
+            get_min_distance(statics, state, *cursor, *key, *distance) + distance
+        })
+        .min()
+        .unwrap_or_default();
+
+    // Before leaving the function, restore the state
+    // 1. Close the door again, ie add the door to all the keypath
+    if let Some(key_paths) = statics.doors_to_keypath.get(&next_key) {
+        for kp in key_paths {
+            trace!(
+                "Adding back door {} to key path {:?}",
+                next_key,
+                kp.borrow()
+            );
+            kp.borrow_mut().doors.insert(next_key);
+        }
+    }
+
+    // 2. Add back the paths going to that key
+    for key_path in removed_key_paths {
+        let from_key_paths = state.path_map.get_mut(&key_path.borrow().from).unwrap();
+        let to = key_path.borrow().to;
+        from_key_paths.insert(to, key_path);
+    }
+
+    // 3. Restore the current_distance
+    state.current_distance -= distance_to_key;
+
+    // 4. Restore the key set
+    state.keys.pop_back();
+
+    // 5. Restore the reachable doors
+    for (cursor, key) in added_reachable_keys {
+        // key_path.borrow_mut().doors.insert(key);
+        state.reachable_keys_per_cursor[cursor].remove(&key);
+    }
+
+    // 6. The key is reachable again
+    state.reachable_keys_per_cursor[next_cursor].insert(next_key);
+
+    // 7. Restore the cursor key
+    state.keys_by_cursor[next_cursor] = previous_cursor_key;
+
+    debug!(
+        "Inserting new cached distance for key {}: {}",
+        cache_key, min_distance
+    );
+    state.cache.insert(cache_key, min_distance);
+    min_distance
 }
 
 fn get_keys(grid: &ContentGrid) -> Vec<(Pos, Key)> {
