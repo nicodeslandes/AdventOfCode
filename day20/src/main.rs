@@ -18,6 +18,11 @@ enum Content {
     Portal(String),
 }
 
+type StateGrid = Grid<State>;
+type ContentGrid = HashMapGrid<Content>;
+type Grid<T> = Vec<Vec<T>>;
+type HashMapGrid<T> = HashMap<Pos, T>;
+
 fn main() -> MainResult<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
     let file = File::open(file_name)?;
@@ -46,36 +51,62 @@ fn main() -> MainResult<()> {
     let y_max = character_grid.keys().map(|Pos(_, y)| *y).max().unwrap();
 
     let read_portal_name = |pos1: Pos, pos2: Pos| {
-        let chars = vec![character_grid[&pos1], character_grid[&pos2]];
+        let mut chars = vec![character_grid[&pos1], character_grid[&pos2]];
+        chars.sort();
         String::from_iter(chars.into_iter())
     };
 
     let mut portals: Vec<(String, Pos)> = vec![];
 
-    let mut gen_portal = |pos: Pos, pos1: Pos, pos2: Pos| {
+    let mut gen_portal = |pos1: Pos, pos2: Pos| {
         let name = read_portal_name(pos1, pos2);
-        portals.push((name.clone(), pos));
+        portals.push((name.clone(), pos1));
         Content::Portal(name)
     };
 
-    for y in 2..y_max - 1 {
-        for x in 2..x_max - 1 {
-            let pos = Pos(x, y);
-            let content = match character_grid.get(&pos) {
-                Some('.') => {
-                    if x == 2 {
-                        gen_portal(pos, Pos(x - 2, y), Pos(x - 1, y))
-                    } else if x == x_max - 1 {
-                        gen_portal(pos, Pos(x + 1, y), Pos(x + 2, y))
-                    } else if y == 2 {
-                        gen_portal(pos, Pos(x, y - 2), Pos(x, y - 1))
-                    } else if y == y_max - 1 {
-                        gen_portal(pos, Pos(x, y + 1), Pos(x, y + 2))
+    let mut try_read_portal = |pos| {
+        // A portal position should contain an alphabetic character, and be adjacent to a passage
+        match character_grid.get(&pos) {
+            None => None,
+            Some(ch) => {
+                let Pos(x, y) = pos;
+
+                let is_passage = |x, y| match character_grid.get(&Pos(x, y)) {
+                    Some('.') => true,
+                    _ => false,
+                };
+
+                if !ch.is_alphabetic() {
+                    None
+                } else {
+                    if is_passage(x - 1, y) {
+                        Some(gen_portal(pos, Pos(x + 1, y)))
+                    } else if is_passage(x + 1, y) {
+                        Some(gen_portal(pos, Pos(x - 1, y)))
+                    } else if is_passage(x, y - 1) {
+                        Some(gen_portal(pos, Pos(x, y + 1)))
+                    } else if is_passage(x, y + 1) {
+                        Some(gen_portal(pos, Pos(x, y - 1)))
                     } else {
-                        Content::Passage
+                        None
                     }
                 }
+            }
+        }
+    };
+    for y in 1..y_max {
+        for x in 1..x_max {
+            let pos = Pos(x, y);
+            let content = match character_grid.get(&pos) {
+                Some('.') => Content::Passage,
                 Some('#') => Content::Wall,
+                Some(ch) if ch.is_alphabetic() => {
+                    if let Some(portal) = try_read_portal(pos) {
+                        portal
+                    } else {
+                        continue;
+                    }
+                }
                 _ => continue,
             };
 
@@ -83,18 +114,29 @@ fn main() -> MainResult<()> {
         }
     }
 
-    println!("Grid: {:?}", grid);
+    display_content_grid(&grid, None);
 
-    let current = *grid
+    let current = grid
         .iter()
         .find(|(_, v)| match v {
             Content::Portal(s) => s == "AA",
             _ => false,
         })
-        .unwrap()
-        .0;
+        .map(|(&Pos(x, y), _)| Pos(x, y + 1))
+        .unwrap();
 
     println!("Start position: {:?}", current);
+
+    // Connect each portal to its destination
+    let mut portals_by_key: HashMap<String, Vec<Pos>> = HashMap::new();
+    for (portal_name, pos) in &portals {
+        match portals_by_key.get_mut(portal_name) {
+            None => {
+                portals_by_key.insert(portal_name.clone(), vec![*pos]);
+            }
+            Some(v) => v.push(*pos),
+        }
+    }
 
     let mut state: Vec<Vec<State>> = vec![];
     for x in 0..x_max {
@@ -107,8 +149,7 @@ fn main() -> MainResult<()> {
         }
     }
 
-    display_content_grid(&state, (x_max, y_max), Some(current));
-
+    display_state_grid(&state, (x_max, y_max), Some(current));
 
     // loop {
     //     match grid.get(&current){
@@ -121,10 +162,7 @@ fn main() -> MainResult<()> {
     Ok(())
 }
 
-type ContentGrid = Vec<Vec<State>>;
-type Grid<T> = Vec<Vec<T>>;
-
-fn display_content_grid(grid: &ContentGrid, dim: (usize, usize), current_pos: Option<Pos>) {
+fn display_state_grid(grid: &StateGrid, dim: (usize, usize), current_pos: Option<Pos>) {
     display_grid(grid, dim, current_pos, |_pos, s| match s {
         Some(State::None) | None => String::from("  "),
         Some(State::Visited(d)) => format!("{:2}", d % 100),
@@ -132,8 +170,48 @@ fn display_content_grid(grid: &ContentGrid, dim: (usize, usize), current_pos: Op
     });
 }
 
+fn display_content_grid(grid: &ContentGrid, current_pos: Option<Pos>) {
+    display_hash_map_grid(grid, current_pos, |_pos, s| match s {
+        Some(Content::Passage) | None => String::from("  "),
+        Some(Content::Portal(p)) => p.clone(),
+        Some(Content::Wall) => String::from("██"),
+    });
+}
 
-fn display_grid<T>(state: &Grid<T>, dim: (usize, usize), current: Option<Pos>, display: impl Fn(Pos, Option<&T>) -> String) {
+fn display_hash_map_grid<T>(
+    grid: &HashMapGrid<T>,
+    current_pos: Option<Pos>,
+    display: impl Fn(Pos, Option<&T>) -> String,
+) {
+    // if !log_enabled!(Level::Info) {
+    //     return;
+    // }
+    let x_max = grid.keys().map(|Pos(x, _)| *x).max().unwrap();
+    let y_max = grid.keys().map(|Pos(_, y)| *y).max().unwrap();
+
+    for y in 0..=y_max {
+        for x in 0..=x_max {
+            if let Some(p) = current_pos {
+                if p == Pos(x, y) {
+                    print!("@ ");
+                    continue;
+                }
+            }
+            let pos = Pos(x, y);
+            print!("{}", display(pos, grid.get(&pos)));
+        }
+
+        println!();
+    }
+    println!();
+}
+
+fn display_grid<T>(
+    state: &Grid<T>,
+    dim: (usize, usize),
+    current: Option<Pos>,
+    display: impl Fn(Pos, Option<&T>) -> String,
+) {
     let (x_max, y_max) = dim;
     for y in 0..y_max {
         for x in 0..x_max {
