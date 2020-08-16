@@ -124,7 +124,13 @@ fn main() -> MainResult<()> {
             Content::Portal(s) => s == "AA",
             _ => false,
         })
-        .map(|(&Pos(x, y), _)| Pos(x, y + 1))
+        .map(|(pos, _)| {
+            NextMoveIterator::new(*pos).find(|p| match grid.get(p) {
+                Some(Content::Passage) => true,
+                _ => false,
+            })
+        })
+        .unwrap()
         .unwrap();
 
     println!("Start position: {:?}", current);
@@ -153,11 +159,17 @@ fn get_distance_to_exit(
 
     let get_portal_destination = |name: &String, from: Pos| {
         let portal_positions = &portals_by_key[name];
-        if portal_positions[0] == from {
+        let other_end = if portal_positions[0] == from {
             portal_positions[1]
         } else {
             portal_positions[0]
-        }
+        };
+        NextMoveIterator::new(other_end)
+            .find(|p| match grid.get(p) {
+                Some(Content::Passage) => true,
+                _ => false,
+            })
+            .unwrap()
     };
     let mut state: StateGrid = StateGrid::new();
     let (x_max, y_max) = dim;
@@ -193,39 +205,46 @@ fn get_distance_to_exit(
         }
     }
 
-    state.insert(start, State::Visited(0));
     display_state_grid(&state, Some(start));
 
     let mut cursors = vec![start];
     let mut distance = 0;
 
-    loop {
+    while !cursors.is_empty() {
         let mut new_cursors = vec![];
-        distance += 1;
+
+        println!("Cursors: {:?}", cursors);
         for c in &cursors {
+            match state.get(c) {
+                Some(State::Visited(d)) if *d <= distance => continue,
+                _ => (),
+            }
+
+            state.insert(*c, State::Visited(distance));
+
             for m in NextMoveIterator::new(*c) {
                 match state.get(&m) {
                     Some(State::None) => {
-                        state.insert(m, State::Visited(distance));
                         new_cursors.push(m);
                     }
                     Some(State::PortalTo(p)) => {
                         let portal_dest = p.clone();
-                        state.insert(m, State::Visited(distance));
                         new_cursors.push(portal_dest);
                     }
-                    Some(State::Exit) => {
-                        return distance - 1;
-                    }
+                    Some(State::Exit) => return distance,
                     _ => (),
                 }
             }
         }
 
+        set_cursor_position(0, 0);
         display_state_grid(&state, None);
 
         cursors = new_cursors;
+        distance += 1;
     }
+
+    return distance;
 }
 
 fn display_state_grid(grid: &StateGrid, current_pos: Option<Pos>) {
@@ -283,4 +302,34 @@ enum State {
     Origin,
     Exit,
     Visited(u32),
+}
+
+extern crate kernel32;
+extern crate winapi;
+
+use winapi::wincon::COORD;
+use winapi::HANDLE;
+
+static mut CONSOLE_HANDLE: Option<HANDLE> = None;
+
+fn get_output_handle() -> HANDLE {
+    unsafe {
+        if let Some(handle) = CONSOLE_HANDLE {
+            return handle;
+        } else {
+            let handle = kernel32::GetStdHandle(winapi::STD_OUTPUT_HANDLE);
+            CONSOLE_HANDLE = Some(handle);
+            return handle;
+        }
+    }
+}
+
+fn set_cursor_position(y: i16, x: i16) {
+    let handle = get_output_handle();
+    if handle == winapi::INVALID_HANDLE_VALUE {
+        panic!("NoConsole")
+    }
+    unsafe {
+        kernel32::SetConsoleCursorPosition(handle, COORD { X: x, Y: y });
+    }
 }
