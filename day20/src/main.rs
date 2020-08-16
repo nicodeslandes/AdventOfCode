@@ -191,20 +191,6 @@ fn get_distance_to_exit(
         }
     }
 
-    // Build walls around portals
-    for x in 0..x_max {
-        for y in 0..y_max {
-            let pos = Pos(x, y);
-            if let Some(State::PortalTo(_)) = state.get(&pos) {
-                for m in NextMoveIterator::new(pos) {
-                    if !grid.contains_key(&m) {
-                        state.insert(m, State::Wall);
-                    }
-                }
-            }
-        }
-    }
-
     display_state_grid(&state, Some(start));
 
     let mut cursors = vec![start];
@@ -213,7 +199,7 @@ fn get_distance_to_exit(
     while !cursors.is_empty() {
         let mut new_cursors = vec![];
 
-        println!("Cursors: {:?}", cursors);
+        //println!("Cursors: {:?}", cursors);
         for c in &cursors {
             match state.get(c) {
                 Some(State::Visited(d)) if *d <= distance => continue,
@@ -237,8 +223,8 @@ fn get_distance_to_exit(
             }
         }
 
-        set_cursor_position(0, 0);
-        display_state_grid(&state, None);
+        //set_cursor_position(0, 0);
+        //display_state_grid(&state, None);
 
         cursors = new_cursors;
         distance += 1;
