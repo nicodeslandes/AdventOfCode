@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::iterators::*;
 use std::collections::HashMap;
 use std::env;
@@ -183,7 +185,7 @@ fn get_distance_to_exit(
                     Some(Content::Portal(s)) if s == "AA" => State::Origin,
                     Some(Content::Portal(s)) if s == "ZZ" => State::Exit,
                     Some(Content::Portal(name)) => {
-                        State::PortalTo(get_portal_destination(name, pos))
+                        State::PortalTo(name.clone(), get_portal_destination(name, pos))
                     }
                     _ => State::None,
                 },
@@ -208,12 +210,15 @@ fn get_distance_to_exit(
 
             state.insert(*c, State::Visited(distance));
 
+            set_cursor_position(0, 0);
+            display_state_grid(&state, None);
+
             for m in NextMoveIterator::new(*c) {
                 match state.get(&m) {
                     Some(State::None) => {
                         new_cursors.push(m);
                     }
-                    Some(State::PortalTo(p)) => {
+                    Some(State::PortalTo(_, p)) => {
                         let portal_dest = p.clone();
                         new_cursors.push(portal_dest);
                     }
@@ -222,9 +227,6 @@ fn get_distance_to_exit(
                 }
             }
         }
-
-        //set_cursor_position(0, 0);
-        //display_state_grid(&state, None);
 
         cursors = new_cursors;
         distance += 1;
@@ -237,7 +239,7 @@ fn display_state_grid(grid: &StateGrid, current_pos: Option<Pos>) {
     display_grid(grid, current_pos, |_pos, s| match s {
         Some(State::None) | None => String::from("  "),
         Some(State::Visited(d)) => format!("{:2}", d % 100),
-        Some(State::PortalTo(_)) => String::from("PP"),
+        Some(State::PortalTo(name, _)) => name.clone(),
         Some(State::Origin) => String::from("AA"),
         Some(State::Exit) => String::from("ZZ"),
         Some(State::Wall) => String::from("██"),
@@ -280,11 +282,11 @@ fn display_grid<T>(
     println!();
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 enum State {
     Wall,
     None,
-    PortalTo(Pos),
+    PortalTo(String, Pos),
     Origin,
     Exit,
     Visited(u32),
