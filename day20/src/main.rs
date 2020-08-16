@@ -1,3 +1,4 @@
+use crate::iterators::*;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -6,10 +7,12 @@ use std::io::BufReader;
 use std::iter::FromIterator;
 use std::result::Result;
 
+mod iterators;
+
 type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
-struct Pos(usize, usize);
+pub struct Pos(usize, usize);
 
 #[derive(Debug)]
 enum Content {
@@ -19,9 +22,8 @@ enum Content {
 }
 
 type StateGrid = Grid<State>;
-type ContentGrid = HashMapGrid<Content>;
-type Grid<T> = Vec<Vec<T>>;
-type HashMapGrid<T> = HashMap<Pos, T>;
+type ContentGrid = Grid<Content>;
+type Grid<T> = HashMap<Pos, T>;
 
 fn main() -> MainResult<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
@@ -127,9 +129,20 @@ fn main() -> MainResult<()> {
 
     println!("Start position: {:?}", current);
 
+    let distance = get_distance_to_exit(current, &grid, (x_max, y_max), &portals);
+    println!("Min distance found: {}", distance);
+    Ok(())
+}
+
+fn get_distance_to_exit(
+    start: Pos,
+    grid: &ContentGrid,
+    dim: (usize, usize),
+    portals: &Vec<(String, Pos)>,
+) -> u32 {
     // Connect each portal to its destination
     let mut portals_by_key: HashMap<String, Vec<Pos>> = HashMap::new();
-    for (portal_name, pos) in &portals {
+    for (portal_name, pos) in portals {
         match portals_by_key.get_mut(portal_name) {
             None => {
                 portals_by_key.insert(portal_name.clone(), vec![*pos]);
@@ -138,48 +151,104 @@ fn main() -> MainResult<()> {
         }
     }
 
-    let mut state: Vec<Vec<State>> = vec![];
+    let get_portal_destination = |name: &String, from: Pos| {
+        let portal_positions = &portals_by_key[name];
+        if portal_positions[0] == from {
+            portal_positions[1]
+        } else {
+            portal_positions[0]
+        }
+    };
+    let mut state: StateGrid = StateGrid::new();
+    let (x_max, y_max) = dim;
     for x in 0..x_max {
-        state.push(vec![State::None; y_max + 1]);
         for y in 0..y_max {
-            state[x][y] = match grid.get(&Pos(x, y)) {
-                Some(Content::Wall) => State::Wall,
-                _ => State::None,
+            let pos = Pos(x, y);
+            state.insert(
+                pos,
+                match grid.get(&pos) {
+                    Some(Content::Wall) => State::Wall,
+                    Some(Content::Portal(s)) if s == "AA" => State::Origin,
+                    Some(Content::Portal(s)) if s == "ZZ" => State::Exit,
+                    Some(Content::Portal(name)) => {
+                        State::PortalTo(get_portal_destination(name, pos))
+                    }
+                    _ => State::None,
+                },
+            );
+        }
+    }
+
+    // Build walls around portals
+    for x in 0..x_max {
+        for y in 0..y_max {
+            let pos = Pos(x, y);
+            if let Some(State::PortalTo(_)) = state.get(&pos) {
+                for m in NextMoveIterator::new(pos) {
+                    if !grid.contains_key(&m) {
+                        state.insert(m, State::Wall);
+                    }
+                }
             }
         }
     }
 
-    display_state_grid(&state, (x_max, y_max), Some(current));
+    state.insert(start, State::Visited(0));
+    display_state_grid(&state, Some(start));
 
-    // loop {
-    //     match grid.get(&current){
-    //         Some(Content::Passage) {
-    //             for
-    //         }
-    //     }
-    // }
+    let mut cursors = vec![start];
+    let mut distance = 0;
 
-    Ok(())
+    loop {
+        let mut new_cursors = vec![];
+        distance += 1;
+        for c in &cursors {
+            for m in NextMoveIterator::new(*c) {
+                match state.get(&m) {
+                    Some(State::None) => {
+                        state.insert(m, State::Visited(distance));
+                        new_cursors.push(m);
+                    }
+                    Some(State::PortalTo(p)) => {
+                        let portal_dest = p.clone();
+                        state.insert(m, State::Visited(distance));
+                        new_cursors.push(portal_dest);
+                    }
+                    Some(State::Exit) => {
+                        return distance - 1;
+                    }
+                    _ => (),
+                }
+            }
+        }
+
+        display_state_grid(&state, None);
+
+        cursors = new_cursors;
+    }
 }
 
-fn display_state_grid(grid: &StateGrid, dim: (usize, usize), current_pos: Option<Pos>) {
-    display_grid(grid, dim, current_pos, |_pos, s| match s {
+fn display_state_grid(grid: &StateGrid, current_pos: Option<Pos>) {
+    display_grid(grid, current_pos, |_pos, s| match s {
         Some(State::None) | None => String::from("  "),
         Some(State::Visited(d)) => format!("{:2}", d % 100),
+        Some(State::PortalTo(_)) => String::from("PP"),
+        Some(State::Origin) => String::from("AA"),
+        Some(State::Exit) => String::from("ZZ"),
         Some(State::Wall) => String::from("██"),
     });
 }
 
 fn display_content_grid(grid: &ContentGrid, current_pos: Option<Pos>) {
-    display_hash_map_grid(grid, current_pos, |_pos, s| match s {
+    display_grid(grid, current_pos, |_pos, s| match s {
         Some(Content::Passage) | None => String::from("  "),
         Some(Content::Portal(p)) => p.clone(),
         Some(Content::Wall) => String::from("██"),
     });
 }
 
-fn display_hash_map_grid<T>(
-    grid: &HashMapGrid<T>,
+fn display_grid<T>(
+    grid: &Grid<T>,
     current_pos: Option<Pos>,
     display: impl Fn(Pos, Option<&T>) -> String,
 ) {
@@ -206,87 +275,12 @@ fn display_hash_map_grid<T>(
     println!();
 }
 
-fn display_grid<T>(
-    state: &Grid<T>,
-    dim: (usize, usize),
-    current: Option<Pos>,
-    display: impl Fn(Pos, Option<&T>) -> String,
-) {
-    let (x_max, y_max) = dim;
-    for y in 0..y_max {
-        for x in 0..x_max {
-            let pos = Pos(x, y);
-            if let Some(p) = current {
-                if p == pos {
-                    print!("@ ");
-                    continue;
-                }
-            }
-            print!("{}", display(pos, Some(&state[x][y])));
-            if current == Some(pos) {
-                print!("x");
-            } else {
-            }
-        }
-        println!();
-    }
-}
-
 #[derive(Copy, Clone, Debug)]
 enum State {
     Wall,
     None,
+    PortalTo(Pos),
+    Origin,
+    Exit,
     Visited(u32),
-}
-
-struct NextMoveIterator {
-    next_direction: Option<Direction>,
-    origin: Pos,
-}
-
-impl NextMoveIterator {
-    fn new(pos: Pos) -> NextMoveIterator {
-        NextMoveIterator {
-            origin: pos,
-            next_direction: Some(Direction::Up),
-        }
-    }
-}
-
-impl Iterator for NextMoveIterator {
-    type Item = Pos;
-
-    fn next(&mut self) -> Option<Pos> {
-        match &self.next_direction {
-            None => None,
-            Some(d) => {
-                let Pos(x, y) = self.origin;
-                match d {
-                    Direction::Up => {
-                        self.next_direction = Some(Direction::Right);
-                        Some(Pos(x, y - 1))
-                    }
-                    Direction::Right => {
-                        self.next_direction = Some(Direction::Bottom);
-                        Some(Pos(x, y - 1))
-                    }
-                    Direction::Bottom => {
-                        self.next_direction = Some(Direction::Left);
-                        Some(Pos(x, y - 1))
-                    }
-                    Direction::Left => {
-                        self.next_direction = None;
-                        Some(Pos(x, y - 1))
-                    }
-                }
-            }
-        }
-    }
-}
-
-enum Direction {
-    Up,
-    Right,
-    Bottom,
-    Left,
 }
