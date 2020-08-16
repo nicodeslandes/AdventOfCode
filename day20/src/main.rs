@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use crate::iterators::*;
+use num_format::{Locale, ToFormattedString};
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -8,6 +9,7 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::iter::FromIterator;
 use std::result::Result;
+use std::time::Instant;
 
 mod iterators;
 
@@ -15,6 +17,18 @@ type MainResult<T> = Result<T, Box<dyn ::std::error::Error>>;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub struct Pos(usize, usize);
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
+pub struct Pos3D {
+    pos: Pos,
+    level: usize,
+}
+
+impl Pos3D {
+    fn new(pos: Pos, level: usize) -> Pos3D {
+        Pos3D { pos, level }
+    }
+}
 
 #[derive(Debug)]
 enum Content {
@@ -26,6 +40,8 @@ enum Content {
 type StateGrid = Grid<State>;
 type ContentGrid = Grid<Content>;
 type Grid<T> = HashMap<Pos, T>;
+
+type StateGrid3D = HashMap<usize, StateGrid>;
 
 fn main() -> MainResult<()> {
     let file_name = env::args().nth(1).expect("Enter a file name");
@@ -119,6 +135,7 @@ fn main() -> MainResult<()> {
     }
 
     display_content_grid(&grid, None);
+    let start = Instant::now();
 
     let current = grid
         .iter()
@@ -135,15 +152,23 @@ fn main() -> MainResult<()> {
         .unwrap()
         .unwrap();
 
+    let current = Pos3D::new(current, 0);
+
     println!("Start position: {:?}", current);
 
     let distance = get_distance_to_exit(current, &grid, (x_max, y_max), &portals);
-    println!("Min distance found: {}", distance);
+    println!(
+        "Min distance found in {} ms: {}",
+        (Instant::now() - start)
+            .as_millis()
+            .to_formatted_string(&Locale::en),
+        distance
+    );
     Ok(())
 }
 
 fn get_distance_to_exit(
-    start: Pos,
+    start: Pos3D,
     grid: &ContentGrid,
     dim: (usize, usize),
     portals: &Vec<(String, Pos)>,
@@ -173,19 +198,25 @@ fn get_distance_to_exit(
             })
             .unwrap()
     };
-    let mut state: StateGrid = StateGrid::new();
+    let mut base_state: StateGrid = StateGrid::new();
     let (x_max, y_max) = dim;
     for x in 0..x_max {
         for y in 0..y_max {
             let pos = Pos(x, y);
-            state.insert(
+            base_state.insert(
                 pos,
                 match grid.get(&pos) {
                     Some(Content::Wall) => State::Wall,
                     Some(Content::Portal(s)) if s == "AA" => State::Origin,
                     Some(Content::Portal(s)) if s == "ZZ" => State::Exit,
                     Some(Content::Portal(name)) => {
-                        State::PortalTo(name.clone(), get_portal_destination(name, pos))
+                        let destination = get_portal_destination(name, pos);
+                        let name = name.clone();
+                        if x < 2 || y < 2 || x >= x_max - 3 || y >= y_max - 2 {
+                            State::OuterPortal(name, destination)
+                        } else {
+                            State::InnerPortal(name, destination)
+                        }
                     }
                     _ => State::None,
                 },
@@ -193,36 +224,56 @@ fn get_distance_to_exit(
         }
     }
 
-    display_state_grid(&state, Some(start));
+    //display_state_grid(&state, Some(start));
 
     let mut cursors = vec![start];
     let mut distance = 0;
+
+    let mut state = StateGrid3D::new();
 
     while !cursors.is_empty() {
         let mut new_cursors = vec![];
 
         //println!("Cursors: {:?}", cursors);
         for c in &cursors {
-            match state.get(c) {
+            let level_state = match state.get_mut(&c.level) {
+                Some(s) => s,
+                _ => {
+                    state.insert(c.level, base_state.clone());
+                    state.get_mut(&c.level).unwrap()
+                }
+            };
+
+            match level_state.get(&c.pos) {
                 Some(State::Visited(d)) if *d <= distance => continue,
                 _ => (),
             }
 
-            state.insert(*c, State::Visited(distance));
+            level_state.insert(c.pos, State::Visited(distance));
 
-            set_cursor_position(0, 0);
-            display_state_grid(&state, None);
+            //set_cursor_position(0, 0);
+            //display_state_grid(&state, None);
 
-            for m in NextMoveIterator::new(*c) {
-                match state.get(&m) {
+            for m in NextMoveIterator::new(c.pos) {
+                match level_state.get(&m) {
                     Some(State::None) => {
-                        new_cursors.push(m);
+                        new_cursors.push(Pos3D::new(m, c.level));
                     }
-                    Some(State::PortalTo(_, p)) => {
+                    Some(State::InnerPortal(_, p)) => {
                         let portal_dest = p.clone();
-                        new_cursors.push(portal_dest);
+                        new_cursors.push(Pos3D::new(portal_dest, c.level + 1));
                     }
-                    Some(State::Exit) => return distance,
+                    Some(State::OuterPortal(_, p)) => {
+                        if c.level > 0 {
+                            let portal_dest = p.clone();
+                            new_cursors.push(Pos3D::new(portal_dest, c.level - 1));
+                        }
+                    }
+                    Some(State::Exit) => {
+                        if c.level == 0 {
+                            return distance;
+                        }
+                    }
                     _ => (),
                 }
             }
@@ -239,7 +290,8 @@ fn display_state_grid(grid: &StateGrid, current_pos: Option<Pos>) {
     display_grid(grid, current_pos, |_pos, s| match s {
         Some(State::None) | None => String::from("  "),
         Some(State::Visited(d)) => format!("{:2}", d % 100),
-        Some(State::PortalTo(name, _)) => name.clone(),
+        Some(State::InnerPortal(name, _)) => name.to_lowercase(),
+        Some(State::OuterPortal(name, _)) => name.clone(),
         Some(State::Origin) => String::from("AA"),
         Some(State::Exit) => String::from("ZZ"),
         Some(State::Wall) => String::from("██"),
@@ -286,7 +338,8 @@ fn display_grid<T>(
 enum State {
     Wall,
     None,
-    PortalTo(String, Pos),
+    InnerPortal(String, Pos),
+    OuterPortal(String, Pos),
     Origin,
     Exit,
     Visited(u32),
