@@ -8,7 +8,7 @@ def set_log_level(level):
     if not _logging_initialised:
         _initialise_logging()
 
-    logging.root.setLevel(logging.DEBUG)
+    logging.root.setLevel(level)
 
 
 def _initialise_logging():
