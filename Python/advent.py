@@ -4,6 +4,7 @@ from logging import debug, info, warning, error
 import argparse
 import importlib
 import re
+import requests
 
 
 def main():
@@ -42,14 +43,19 @@ def run_puzzle_module(module, part):
     if part is not None:
         debug("Only executing part %d", part)
 
+    with open(".data/cookie.txt") as cookie_file:
+        cookie = cookie_file.readline().rstrip()
+
+    input = requests.get(f"https://adventofcode.com/2019/day/{day}/input",
+                         cookies=dict(session=cookie))
     debug("Loading module %s", module)
     day_module = importlib.import_module(module)
     if (part is None or part == 1) and "part1" in day_module.__dict__:
-        result = day_module.part1()
+        result = day_module.part1(input.text)
         print("Day {} part 1: {}".format(day, result))
 
     if (part is None or part == 2) and "part2" in day_module.__dict__:
-        result = day_module.part2()
+        result = day_module.part2(input.text)
         print("Day {} part 2: {}".format(day, result))
 
 
