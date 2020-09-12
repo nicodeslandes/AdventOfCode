@@ -1,3 +1,5 @@
+from argparse import Namespace
+from typing import Any
 from utils.log_init import set_log_level
 import logging
 from logging import debug, info, warning, error
@@ -7,11 +9,19 @@ import re
 import requests
 import os
 import sys
+import time
+
+
+class Options:
+    useTestFile: int
+
+    def __init__(self, useTestFile: int):
+        self.useTestFile = useTestFile
 
 
 class PuzzleRunner:
-    def __init__(self):
-        self.data_loader = PuzzleDataLoader()
+    def __init__(self, options: Options):
+        self.data_loader = PuzzleDataLoader(options)
 
     def run_puzzle(self, day, part=None):
         debug("Starting execution of day %d", day)
@@ -30,32 +40,62 @@ class PuzzleRunner:
 
         input = self.data_loader.get_input_file(day)
         debug("Loading module %s", module)
-        day_module = importlib.import_module(module)
+        day_module: Any = importlib.import_module(module)
         if (part is None or part == 1) and "part1" in day_module.__dict__:
-            result = day_module.part1(input)
-            print("Day {} part 1: {}".format(day, result))
+            def run_part1(): return day_module.part1(input)
+            self.run(day, 1, run_part1)
 
         if (part is None or part == 2) and "part2" in day_module.__dict__:
-            result = day_module.part2(input)
-            print("Day {} part 2: {}".format(day, result))
+            def run_part2(): return day_module.part2(input)
+            self.run(day, 2, run_part2)
+
+    def run(self, day, part, func):
+        start = time.perf_counter()
+        result = func()
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        print("Day {} part {}: {} (in {:,} ms)".format(
+            day, part, result, int(elapsed_ms)))
 
 
 class PuzzleDataLoader:
+    def __init__(self, options: Options):
+        self.options = options
+
     def get_input_file(self, day):
         # Try to load the cached copy
         input_cache_dir = f".data/day{day}"
-        input_cache_name = f"{input_cache_dir}/input.txt"
+        file_name = "input.txt" if not self.options.useTestFile else f"test{self.options.useTestFile}.txt"
+        input_cache_name = f"{input_cache_dir}/{file_name}"
         if os.path.exists(input_cache_name):
             with open(input_cache_name) as f:
                 return f.readlines()
 
-        # If there's no local copy, download it
-        cookie = self.load_cookie()
-        input = requests.get(f"https://adventofcode.com/2019/day/{day}/input",
-                             cookies=dict(session=cookie)).text
+        if self.options.useTestFile:
+            info("File %s not found; requesting content from user", input_cache_name)
+            print("Please enter the content for test file test%d.txt; end with an empty line" %
+                  self.options.useTestFile)
 
-        self.save_input(input, input_cache_dir, input_cache_name)
-        return input.splitlines()
+            content = ""
+            while True:
+                try:
+                    line = input()
+                    if line == "":
+                        break
+                except EOFError:
+                    break
+
+                if content != "":
+                    content += "\n"
+                content += line
+
+        else:
+            # If there's no local copy, download it
+            cookie = self.load_cookie()
+            content = requests.get(f"https://adventofcode.com/2019/day/{day}/input",
+                                   cookies=dict(session=cookie)).text
+
+        self.save_input(content, input_cache_dir, input_cache_name)
+        return content.splitlines()
 
     def save_input(self, input, input_cache_dir, input_cache_name):
         if not os.path.exists(input_cache_dir):
@@ -78,7 +118,8 @@ def main():
     setup_log_level(args.verbosity)
 
     info("Hello, welcome to Advent Of Code 2019")
-    runner = PuzzleRunner()
+    options = Options(useTestFile=args.test)
+    runner = PuzzleRunner(options)
     if args.list:
         import runners
         for m in runners.__all__:
@@ -91,7 +132,7 @@ def main():
         for day_module in runners.__all__:
             runner.run_puzzle_module(f"runners.{day_module}", args.part)
     else:
-        raise "Invalid arguments"
+        raise Exception("Invalid arguments")
 
 
 def parse_args():
@@ -107,6 +148,8 @@ def parse_args():
                        action="store_true")
     parser.add_argument(
         "-p", "--part", choices=[1, 2], type=int, help="only run a single part of the puzzle(s)")
+    parser.add_argument(
+        "-t", "--t", type=int, help="use test input TEXT.txt", dest="test")
 
     return parser.parse_args()
 
