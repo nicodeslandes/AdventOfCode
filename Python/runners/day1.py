@@ -3,7 +3,7 @@ from logging import debug
 
 def part1(input):
     sum = 0
-    for line in input.split('\n'):
+    for line in input:
         debug("Calculating the fuel for mass %s", line)
         if line != '':
             sum += calculate_module_fuel(int(line))
@@ -12,7 +12,7 @@ def part1(input):
 
 def part2(input):
     sum = 0
-    for line in input.split('\n'):
+    for line in input:
         if line == '':
             break
 
