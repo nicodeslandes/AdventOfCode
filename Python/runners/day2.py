@@ -1,5 +1,5 @@
 from logging import debug
-from typing import List
+from typing import List, Optional
 
 Memory = List[int]
 Result = int
@@ -46,13 +46,13 @@ class Computer:
         return arg
 
 
-def calc(input: List[str], noun: int, verb: int):
+def calc(input: List[str], noun: Optional[int], verb: Optional[int]):
     memory = load_memory_from_input(input)
     computer = Computer(memory)
 
     # Set input
-    memory[1] = noun
-    memory[2] = verb
+    if noun: memory[1] = noun
+    if verb: memory[2] = verb
 
     while computer.run() != 99:
         pass
@@ -60,11 +60,11 @@ def calc(input: List[str], noun: int, verb: int):
     return memory[0]
 
 
-def part1(input: List[str]) -> int:
-    return calc(input, 12, 2)
+def part1(input: List[str], is_test: bool = False, **kargs) -> int:
+    return calc(input, None if is_test else 12, None if is_test else None)
 
 
-def part2(input: List[str]) -> int:
+def part2(input: List[str], **kargs) -> int:
     for noun in range(100):
         for verb in range(100):
             if calc(input, noun, verb) == 19690720:
