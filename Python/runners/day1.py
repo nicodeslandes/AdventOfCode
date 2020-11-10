@@ -1,6 +1,5 @@
 from logging import debug
 
-
 def part1(input):
     sum = 0
     for line in input:
