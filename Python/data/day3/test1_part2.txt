@@ -1,0 +1,4 @@
+Result: 30
+Input:
+R8,U5,L5,D3
+U7,R6,D4,L4

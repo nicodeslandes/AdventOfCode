@@ -51,8 +51,11 @@ class PuzzleDataLoader:
         else:
             # If there's no local copy, download it
             cookie = self.load_cookie()
-            content = requests.get(f"https://adventofcode.com/2019/day/{day}/input",
-                                   cookies=dict(session=cookie)).text
+            response = requests.get(f"https://adventofcode.com/2019/day/{day}/input",
+                                   cookies=dict(session=cookie))
+            if not response.ok:
+                raise Exception(f"Error while downloading input for puzzle {day}: {response.text}")
+            content = response.text
 
         self.save_input(content, self.get_cache_dir(day), input_cache_name)
         return PuzzleData(input_cache_name, test != None)
