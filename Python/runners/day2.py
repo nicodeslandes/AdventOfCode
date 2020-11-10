@@ -60,11 +60,11 @@ def calc(input: List[str], noun: Optional[int], verb: Optional[int]):
     return memory[0]
 
 
-def part1(input: List[str], is_test: bool = False, **kargs) -> int:
+def part1(input: List[str], is_test: bool) -> int:
     return calc(input, None if is_test else 12, None if is_test else None)
 
 
-def part2(input: List[str], **kargs) -> int:
+def part2(input: List[str]) -> int:
     for noun in range(100):
         for verb in range(100):
             if calc(input, noun, verb) == 19690720:

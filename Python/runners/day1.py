@@ -1,6 +1,6 @@
 from logging import debug
 
-def part1(input, **kargs):
+def part1(input):
     sum = 0
     for line in input:
         debug("Calculating the fuel for mass %s", line)
@@ -9,7 +9,7 @@ def part1(input, **kargs):
     return sum
 
 
-def part2(input, **kargs):
+def part2(input):
     sum = 0
     for line in input:
         if line == '':

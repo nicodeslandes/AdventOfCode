@@ -6,6 +6,7 @@ import importlib
 import re
 import os
 import time
+from inspect import signature
 
 class Options:
     useTestFile: int
@@ -60,7 +61,14 @@ class PuzzleRunner:
         def run_part_if_present(part: int):
             func = day_module.__dict__.get(f'part{part}')
             if func:
-                def run(input): return func(input, is_test = test is not None)
+                def run(input):
+                    # Check if we can pass an "is_test" argument
+                    sig = signature(func)
+                    if "is_test" in sig.parameters:
+                        return func(input, is_test = test is not None)
+                    else:
+                        return func(input)
+                        
                 self.run(day, part, test, run)
 
         if (part is None or part == 1): run_part_if_present(1)
