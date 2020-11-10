@@ -1,0 +1,3 @@
+Result: 2
+Input:
+12

@@ -31,7 +31,7 @@ class PuzzleData:
 
 class PuzzleDataLoader:
     def get_cache_dir(self, day: int) -> str:
-        return f".data/day{day}"
+        return f"data/day{day}"
 
     def get_input_file_path(self, day: int, part: int, test: Optional[int]) -> str:
         input_cache_dir = self.get_cache_dir(day)
