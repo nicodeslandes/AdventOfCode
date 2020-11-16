@@ -1,8 +1,8 @@
 
 import runners
 from puzzle_data import PuzzleDataLoader
-from typing import Any, Optional
-from logging import debug, info, warning, error
+from typing import Any, Callable, List, Optional
+from logging import debug, info
 import importlib
 import re
 import os
@@ -20,7 +20,7 @@ class PuzzleRunner:
     def __init__(self, options: Options):
         self.data_loader = PuzzleDataLoader()
 
-    def run_puzzle(self, day, part, test):
+    def run_puzzle(self, day: int, part: Optional[int], test: Optional[int]) -> None:
         debug("Starting execution of day %d", day)
         module = f'runners.day{day}'
         self.run_puzzle_module(module, part, test)
@@ -63,7 +63,7 @@ class PuzzleRunner:
         def run_part_if_present(part: int):
             func = day_module.__dict__.get(f'part{part}')
             if func:
-                def run(input):
+                def run(input: List[str]):
                     # Check if we can pass an "is_test" argument
                     sig = signature(func)
                     if "is_test" in sig.parameters:
@@ -76,13 +76,13 @@ class PuzzleRunner:
         if (part is None or part == 1): run_part_if_present(1)
         if (part is None or part == 2): run_part_if_present(2)
 
-    def run(self, day, part, test, func):
+    def run(self, day: int, part: int, test: Optional[int], func: Callable[[List[str]], int]) -> None:
         puzzle_data = self.data_loader.get_puzzle_data(day, part, test)
         input = puzzle_data.get_data()
         expected_result = puzzle_data.get_expected_result()
 
         start = time.perf_counter()
-        result = func(input)
+        result: int = func(input)
 
         comparison_result = ""
         if expected_result is not None:

@@ -1,5 +1,5 @@
 from logging import debug, info
-from typing import List, Optional, Set, Tuple
+from typing import List, Tuple
 
 Position = Tuple[int, int]
 Grid = dict[Position, int]

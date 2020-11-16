@@ -1,10 +1,13 @@
+from typing import Text, Union
 import colorlog
 import logging
+
+_Level = Union[int, Text]
 
 _logging_initialised = False
 
 
-def set_log_level(level):
+def set_log_level(level: _Level):
     if not _logging_initialised:
         _initialise_logging()
 
@@ -35,4 +38,5 @@ def _initialise_logging():
         style='{', log_colors=log_colors))
 
     logging.root.addHandler(handler)
+    global _logging_initialised
     _logging_initialised = True

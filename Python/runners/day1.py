@@ -1,6 +1,7 @@
 from logging import debug
+from typing import List
 
-def part1(input):
+def part1(input: List[str]):
     sum = 0
     for line in input:
         debug("Calculating the fuel for mass %s", line)
@@ -9,7 +10,7 @@ def part1(input):
     return sum
 
 
-def part2(input):
+def part2(input: List[str]):
     sum = 0
     for line in input:
         if line == '':
@@ -23,5 +24,5 @@ def part2(input):
     return sum
 
 
-def calculate_module_fuel(mass):
+def calculate_module_fuel(mass: int):
     return mass // 3 - 2

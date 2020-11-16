@@ -1,8 +1,10 @@
 from typing import List, Optional
-from logging import debug, info, warning, error
+from logging import debug, info
 import os
 import requests
 import sys
+
+from requests.models import Response
 
 class PuzzleData:
     filename: str
@@ -51,7 +53,7 @@ class PuzzleDataLoader:
         else:
             # If there's no local copy, download it
             cookie = self.load_cookie()
-            response = requests.get(f"https://adventofcode.com/2019/day/{day}/input",
+            response: Response = requests.get(f"https://adventofcode.com/2019/day/{day}/input",
                                    cookies=dict(session=cookie))
             if not response.ok:
                 raise Exception(f"Error while downloading input for puzzle {day}: {response.text}")
@@ -81,7 +83,7 @@ class PuzzleDataLoader:
         result = input("Expected result: ")
         return f"Result: {result}\nInput:\n{content}"
 
-    def save_input(self, input, input_cache_dir, input_cache_name):
+    def save_input(self, input: str, input_cache_dir: str, input_cache_name: str) -> None:
         if not os.path.exists(input_cache_dir):
             os.mkdir(input_cache_dir)
 

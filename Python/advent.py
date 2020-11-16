@@ -1,9 +1,7 @@
-from argparse import Namespace
 from puzzle_runner import Options, PuzzleRunner
-from typing import Any, List, Optional
 from utils.log_init import set_log_level
 import logging
-from logging import debug, info, warning, error
+from logging import debug, info
 import argparse
 
 def main():
@@ -48,7 +46,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def setup_log_level(verbosity):
+def setup_log_level(verbosity: int):
     if verbosity == 0:
         set_log_level(logging.WARNING)
     elif verbosity == 1:
