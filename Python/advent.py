@@ -21,10 +21,9 @@ def main():
     elif args.day:
         runner.run_puzzle(args.day, args.part, args.test)
     elif args.run_all:
-        info("Running all puzzles")
-        import runners
-        for day_module in runners.__all__:
-            runner.run_puzzle_module(f"runners.{day_module}", args.part, args.test)
+        runner.run_all_puzzles(args.part, args.test)
+    elif args.add_day:
+        runner.add_day(args.add_day)
     else:
         raise Exception("Invalid arguments")
 
@@ -40,6 +39,7 @@ def parse_args():
                        type=int, dest="day")
     group.add_argument("-a", "--run-all", help="run all puzzles",
                        action="store_true")
+    group.add_argument("--add", type=int, metavar="DAY", dest="add_day", help="add a new empty solution for the day")
     parser.add_argument(
         "-p", "--part", choices=[1, 2], type=int, help="only run a single part of the puzzle(s)")
     parser.add_argument(

@@ -1,10 +1,12 @@
 
+import runners
 from puzzle_data import PuzzleDataLoader
 from typing import Any, Optional
 from logging import debug, info, warning, error
 import importlib
 import re
 import os
+import shutil
 import time
 from inspect import signature
 
@@ -92,3 +94,20 @@ class PuzzleRunner:
         elapsed_ms = (time.perf_counter() - start) * 1000
         print("Day {} part {}{}: {}{} - {:,} ms".format(
             day, part, f' test {test}' if test else '', result, comparison_result, int(elapsed_ms)))
+
+    def run_all_puzzles(self, part: Optional[int], test: Optional[int]):
+        info("Running all puzzles")
+        for day_module in self._get_all_day_modules():
+            self.run_puzzle_module(f"runners.{day_module}", part, test)
+
+    def _get_all_day_modules(self):
+        return [m for m in runners.__all__ if m != "template"]
+
+    def add_day(self, day: int):
+        day_module = f'day{day}'
+        if (day_module in self._get_all_day_modules()):
+            raise Exception(f'Day {day} solution already exists')
+
+        print("Adding new solution file for day", day)
+        path = os.path.dirname(os.path.abspath(__file__))
+        shutil.copy2(f'{path}/runners/template.py', f'{path}/runners/{day_module}.py')
