@@ -1,9 +1,17 @@
 from abc import ABC, abstractmethod
 from logging import debug
-from typing import Callable, Dict, Hashable, List, Optional
+from typing import Callable, Dict, Hashable, List, Optional, Tuple
+from enum import Enum
 
 Memory = List[int]
 Result = int
+
+class ExecutionResult(Enum):
+    Continue = 1
+    Halt = 2
+    ReadInput = 3
+    WriteOutput = 4
+
 
 class MemoryLoader:
     @staticmethod
@@ -32,21 +40,50 @@ class ImmediateParam(Param):
     def get(self) -> int: return self._value
     def set(self, value: int): raise Exception("Attempted to dereference an immediate parameter!")
     
+class InstructionContext:
+    current_input: Optional[int] = None
+    current_outputs: List[int] = []
+
+    def try_read_input(self) -> Optional[int]:
+        return self.current_input
+
+    def write_output(self, value: int):
+        self.current_outputs.append(value)
+        
 class InstructionProcessor(ABC):
     @abstractmethod
-    def execute(self, memory: Memory, pc: int, op_code: int): pass
+    def execute(self, ctx: InstructionContext, memory: Memory, pc: int, param_modes: int) -> Tuple[int, ExecutionResult]: pass
 
-class Instruction3ParamProcessor(InstructionProcessor):
-    def __init__(self, action: Callable[[Param, Param, Param], None]):
+class Instruction1ParamProcessor(InstructionProcessor):
+    def __init__(self, action: Callable[[InstructionContext, Param], ExecutionResult]):
         self._action = action
 
-    def execute(self, memory: Memory, pc: int, op_code: int):
-        # Extract 3 parameters
-        op_code //= 10
+    def execute(self, ctx: InstructionContext, memory: Memory, pc: int, param_modes: int) -> Tuple[int, ExecutionResult]:
+        # Extract 1 parameter
         def read_param():
-            nonlocal op_code, pc
-            positional_parameter = op_code % 10 == 0
-            op_code //= 10
+            nonlocal param_modes, pc
+            positional_parameter = param_modes % 10 == 0
+            param_modes //= 10
+            value = memory[pc]
+            pc += 1
+            if positional_parameter:
+                return PositionalParam(memory, value)
+            else:
+                return ImmediateParam(value)
+
+        a =  read_param()
+        return pc, self._action(ctx, a)
+
+class Instruction3ParamProcessor(InstructionProcessor):
+    def __init__(self, action: Callable[[InstructionContext, Param, Param, Param], None]):
+        self._action = action
+
+    def execute(self, ctx: InstructionContext, memory: Memory, pc: int, param_modes: int) -> Tuple[int, ExecutionResult]:
+        # Extract 3 parameters
+        def read_param():
+            nonlocal param_modes, pc
+            positional_parameter = param_modes % 10 == 0
+            param_modes //= 10
             value = memory[pc]
             pc += 1
             if positional_parameter:
@@ -58,29 +95,50 @@ class Instruction3ParamProcessor(InstructionProcessor):
         b =  read_param()
         c =  read_param()
 
-        self._action(a,b,c)
-        return pc
+        self._action(ctx, a,b,c)
+        return pc, ExecutionResult.Continue
+
+def processReadInputInstruction(ctx: InstructionContext, x: Param) -> ExecutionResult:
+    input = ctx.try_read_input()
+    if not input: return ExecutionResult.ReadInput
+    x.set(input)
+    ctx.current_input = None
+    return ExecutionResult.Continue
+
+    
+def processWriteOutputInstruction(ctx: InstructionContext, x: Param) -> ExecutionResult:
+    ctx.write_output(x.get())
+    return ExecutionResult.WriteOutput
 
 op_codeRegistry:Dict[int, InstructionProcessor] = {}
-op_codeRegistry[1] = Instruction3ParamProcessor(lambda x, y, d: d.set(x.get() + y.get()))
-op_codeRegistry[2] = Instruction3ParamProcessor(lambda x, y, d: d.set(x.get() * y.get()))
-    
+op_codeRegistry[1] = Instruction3ParamProcessor(lambda _, x, y, d: d.set(x.get() + y.get()))
+op_codeRegistry[2] = Instruction3ParamProcessor(lambda _, x, y, d: d.set(x.get() * y.get()))
+op_codeRegistry[3] = Instruction1ParamProcessor(processReadInputInstruction)
+op_codeRegistry[4] = Instruction1ParamProcessor(processWriteOutputInstruction)
+
 class Computer:
     def __init__(self, memory: Memory):
         self.memory = memory
         self.pc = 0
 
-    def run(self) -> Result:
+    def run(self, ctx: InstructionContext) -> ExecutionResult:
         op_code = self.read_op_code()
         if op_code == 99:
             debug("Halting!")
-            return op_code
+            return ExecutionResult.Halt
 
-        processor = op_codeRegistry.get(op_code)
+        processor = op_codeRegistry.get(op_code % 100)
         if not processor:
-            raise Exception(f'Unknown opcode: {op_code}')
-        self.pc = processor.execute(self.memory, self.pc, op_code)
-        return op_code
+            raise Exception(f'Unknown opcode: {op_code % 100}')
+        new_pc, result = processor.execute(ctx, self.memory, self.pc, op_code // 100)
+
+        debug("Op code %d executed; next pc: %d", op_code, new_pc)
+        if result != ExecutionResult.ReadInput:
+            self.pc = new_pc
+        else:
+            self.pc -= 1
+
+        return result
 
     def read_op_code(self):
         op_code = self.memory[self.pc]

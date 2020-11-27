@@ -1,4 +1,5 @@
 
+from re import match
 import runners
 from puzzle_data import PuzzleDataLoader
 from typing import Any, Callable, List, Optional
@@ -101,7 +102,7 @@ class PuzzleRunner:
             self.run_puzzle_module(f"runners.{day_module}", part, test)
 
     def _get_all_day_modules(self):
-        return [m for m in runners.__all__ if m != "template"]
+        return [m for m in runners.__all__ if re.match(r"day\d+", m)]
 
     def add_day(self, day: int):
         day_module = f'day{day}'

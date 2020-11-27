@@ -1,4 +1,4 @@
-from runners.computer import Computer, Memory, MemoryLoader
+from runners.computer import Computer, ExecutionResult, InstructionContext, Memory, MemoryLoader
 from typing import List, Optional
 
 
@@ -10,7 +10,8 @@ def calc(input: List[str], noun: Optional[int], verb: Optional[int]):
     if noun: memory[1] = noun
     if verb: memory[2] = verb
 
-    while computer.run() != 99:
+    ctx = InstructionContext()
+    while computer.run(ctx) != ExecutionResult.Halt:
         pass
 
     return memory[0]
