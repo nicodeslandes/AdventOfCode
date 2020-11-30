@@ -43,6 +43,8 @@ class ImmediateParam(Param):
 class InstructionContext:
     current_input: Optional[int] = None
     current_outputs: List[int] = []
+    # TODO: Hook this up! And don't overwrite it if the instruction is a jump
+    pc: int
 
     def try_read_input(self) -> Optional[int]:
         return self.current_input
@@ -73,6 +75,29 @@ class Instruction1ParamProcessor(InstructionProcessor):
 
         a =  read_param()
         return pc, self._action(ctx, a)
+
+class Instruction2ParamProcessor(InstructionProcessor):
+    def __init__(self, action: Callable[[InstructionContext, Param, Param], None]):
+        self._action = action
+
+    def execute(self, ctx: InstructionContext, memory: Memory, pc: int, param_modes: int) -> Tuple[int, ExecutionResult]:
+        # Extract 3 parameters
+        def read_param():
+            nonlocal param_modes, pc
+            positional_parameter = param_modes % 10 == 0
+            param_modes //= 10
+            value = memory[pc]
+            pc += 1
+            if positional_parameter:
+                return PositionalParam(memory, value)
+            else:
+                return ImmediateParam(value)
+
+        a =  read_param()
+        b =  read_param()
+
+        self._action(ctx, a,b)
+        return pc, ExecutionResult.Continue
 
 class Instruction3ParamProcessor(InstructionProcessor):
     def __init__(self, action: Callable[[InstructionContext, Param, Param, Param], None]):
@@ -110,11 +135,27 @@ def processWriteOutputInstruction(ctx: InstructionContext, x: Param) -> Executio
     ctx.write_output(x.get())
     return ExecutionResult.WriteOutput
 
+def jump_if_true(ctx: InstructionContext, x: Param, y: Param):
+    if x.get() != 0:
+        ctx.pc = y.get()
+
+def jump_if_false(ctx: InstructionContext, x: Param, y: Param):
+    if x.get() == 0:
+        ctx.pc = y.get()
+
+def jump_if_false(ctx: InstructionContext, x: Param, y: Param):
+    if x.get() == 0:
+        ctx.pc = y.get()
+
 op_codeRegistry:Dict[int, InstructionProcessor] = {}
 op_codeRegistry[1] = Instruction3ParamProcessor(lambda _, x, y, d: d.set(x.get() + y.get()))
 op_codeRegistry[2] = Instruction3ParamProcessor(lambda _, x, y, d: d.set(x.get() * y.get()))
 op_codeRegistry[3] = Instruction1ParamProcessor(processReadInputInstruction)
 op_codeRegistry[4] = Instruction1ParamProcessor(processWriteOutputInstruction)
+op_codeRegistry[5] = Instruction2ParamProcessor(jump_if_true)
+op_codeRegistry[6] = Instruction2ParamProcessor(jump_if_false)
+op_codeRegistry[7] = Instruction3ParamProcessor(lambda _, x, y, d: d.set(int(x.get() < y.get())))
+op_codeRegistry[8] = Instruction3ParamProcessor(lambda _, x, y, d: d.set(int(x.get() == y.get())))
 
 class Computer:
     def __init__(self, memory: Memory):
