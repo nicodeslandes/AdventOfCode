@@ -2,14 +2,14 @@ from logging import debug
 from typing import List
 
 
-def part1(input: List[str]) -> int:
+def read_grid(input):
     def read_row(line: str):
         return [ch == '#' for ch in line]
 
-    grid = [read_row(line.strip()) for line in input]
+    return [read_row(line.strip()) for line in input]
 
-    pos = (0, 0)
-    delta = (3, 1)
+
+def count_trees(grid, delta):
     x = 0
     y = 0
     count = 0
@@ -24,4 +24,17 @@ def part1(input: List[str]) -> int:
 
     return count
 
-# def part2(input: List[str]) -> int:
+
+def part1(input: List[str]) -> int:
+    grid = read_grid(input)
+    delta = (3, 1)
+    return count_trees(grid, delta)
+
+
+def part2(input: List[str]) -> int:
+    grid = read_grid(input)
+    slopes = [(1, 1), (3, 1), (5, 1), (7, 1), (1, 2)]
+    result = 1
+    for d in slopes:
+        result *= count_trees(grid, d)
+    return result
