@@ -6,6 +6,7 @@ import sys
 
 from requests.models import Response
 
+
 class PuzzleData:
     filename: str
     expected_result: Optional[str]
@@ -17,8 +18,10 @@ class PuzzleData:
     def get_data(self) -> List[str]:
         with open(self.filename) as f:
             lines = f.readlines()
-            return lines if not self.is_test_file else lines[2:]
-    
+            if self.is_test_file:
+                lines = lines[2:]
+            return list(map(str.strip, lines))
+
     def get_expected_result(self) -> Optional[str]:
         if not self.is_test_file:
             return None
@@ -26,7 +29,8 @@ class PuzzleData:
         with open(self.filename) as f:
             first_line = f.readline().strip()
             if not first_line.startswith("Result: "):
-                raise Exception(f"Invalid test file {self.filename}; it should start with 'Result: '")
+                raise Exception(
+                    f"Invalid test file {self.filename}; it should start with 'Result: '")
 
             return first_line.replace("Result: ", "")
 
@@ -54,9 +58,10 @@ class PuzzleDataLoader:
             # If there's no local copy, download it
             cookie = self.load_cookie()
             response: Response = requests.get(f"https://adventofcode.com/2020/day/{day}/input",
-                                   cookies=dict(session=cookie))
+                                              cookies=dict(session=cookie))
             if not response.ok:
-                raise Exception(f"Error while downloading input for puzzle {day}: {response.text}")
+                raise Exception(
+                    f"Error while downloading input for puzzle {day}: {response.text}")
             content = response.text
 
         self.save_input(content, self.get_cache_dir(day), input_cache_name)
@@ -65,7 +70,7 @@ class PuzzleDataLoader:
     def read_test_file(self, filename: str, test_file: int) -> str:
         info("File %s not found; requesting content from user", filename)
         print("Please enter the input for test %d; end with an empty line" %
-                test_file)
+              test_file)
 
         content = ""
         while True:
