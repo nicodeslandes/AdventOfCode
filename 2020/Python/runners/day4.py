@@ -29,7 +29,7 @@ def check_height():
 
 
 def check_regex(regex):
-    return lambda value: re.fullmatch(f'^{regex}$', value) != None
+    return lambda value: re.fullmatch(regex, value) != None
 
 
 passport_fields = {
