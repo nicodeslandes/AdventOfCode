@@ -1,6 +1,10 @@
-from typing import List, Set
+import logging
+from typing import Callable, List
 from logging import debug, info
+from runners.utils import count, isEnabled
 import re
+
+Passport = dict[str, str]
 
 
 def check_number(min: int, max: int):
@@ -32,7 +36,7 @@ def check_regex(regex):
     return lambda value: re.fullmatch(regex, value) != None
 
 
-passport_fields = {
+passport_fields: dict[str, Callable[[str], bool]] = {
     'byr': check_number(1920, 2002),
     'iyr': check_number(2010, 2020),
     'eyr': check_number(2010, 2030),
@@ -57,28 +61,39 @@ def read_passports(input):
         yield current
 
 
-def is_valid(passport: dict[str, str]):
+def has_all_keys(passport: Passport):
     missing_keys = set(passport_fields.keys())
     debug("Checking passport %s", passport)
-    debug("Missing keys: %s", missing_keys)
-    for key, value in passport.items():
-        validator = passport_fields.get(key)
-        if validator and validator(value):
-            missing_keys.discard(key)
+    for key in passport.keys():
+        missing_keys.discard(key)
 
     debug("Missing keys: %s", missing_keys)
     return len(missing_keys) == 0
 
 
-def part1(input: List[str]) -> int:
-    for passport in read_passports(input):
-        info("Passport: %s: %s", passport, is_valid(passport))
+def is_valid(passport: Passport):
+    missing_keys = set(passport_fields.keys())
+    debug("Checking passport %s", passport)
+    for key, value in passport.items():
+        validator = passport_fields.get(key)
+        if validator and validator(value):
+            missing_keys.discard(key)
 
-    return sum([int(is_valid(p)) for p in read_passports(input)])
+    debug("Invalid keys: %s", missing_keys)
+    return len(missing_keys) == 0
+
+
+def part1(input: List[str]) -> int:
+    if isEnabled(logging.INFO):
+        for passport in read_passports(input):
+            info("Passport: %s: %s", passport, has_all_keys(passport))
+
+    return sum(1 for p in read_passports(input) if has_all_keys(p))
 
 
 def part2(input: List[str]) -> int:
-    for passport in read_passports(input):
-        info("Passport: %s: %s", passport, is_valid(passport))
+    if isEnabled(logging.INFO):
+        for passport in read_passports(input):
+            info("Passport: %s: %s", passport, is_valid(passport))
 
-    return sum([int(is_valid(p)) for p in read_passports(input)])
+    return sum(1 for p in read_passports(input) if is_valid(p))
