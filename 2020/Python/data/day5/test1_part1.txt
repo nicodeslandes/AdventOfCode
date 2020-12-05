@@ -1,0 +1,3 @@
+Result: 357
+Input:
+FBFBBFFRLR

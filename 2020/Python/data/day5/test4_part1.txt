@@ -1,0 +1,3 @@
+Result: 820
+Input:
+BBFFBBFRLL
