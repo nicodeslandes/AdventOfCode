@@ -1,0 +1,17 @@
+Result: 6
+Input:
+abc
+
+a
+b
+c
+
+ab
+ac
+
+a
+a
+a
+a
+
+b
