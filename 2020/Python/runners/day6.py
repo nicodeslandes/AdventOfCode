@@ -1,4 +1,5 @@
 from typing import List
+from runners.utils import count
 
 
 def part1(input: List[str]) -> int:
@@ -36,7 +37,7 @@ def part2(input: List[str]) -> int:
 
         gl = len(group)
         nonlocal total
-        s = sum((1 for answer in answers if answers[answer] == gl))
+        s = count(1 for answer in answers if answers[answer] == gl)
         total += s
 
     group = []
