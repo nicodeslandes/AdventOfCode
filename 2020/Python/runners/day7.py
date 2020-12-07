@@ -22,7 +22,7 @@ class BagType:
         self.bag_type = bag_type
 
 
-def part1(input: List[str]) -> int:
+def parse_bag_types(input: List[str]) -> dict[str, BagType]:
     bags: dict[str, BagDescriptor] = {}
     for line in input:
         [bag_type, content] = line.split(' contain ')
@@ -52,6 +52,12 @@ def part1(input: List[str]) -> int:
             bag_types[d].inner_bags[inner] = count, bag_types[inner]
             bag_types[inner].parent_bags[d] = count, bag_types[d]
 
+    return bag_types
+
+
+def part1(input: List[str]) -> int:
+    bag_types = parse_bag_types(input)
+
     # Walk through all parents of shiny gold, recursively
     parents: Set[str] = set()
 
@@ -65,4 +71,16 @@ def part1(input: List[str]) -> int:
 
 
 def part2(input: List[str]) -> int:
-    return 0
+    bag_types = parse_bag_types(input)
+
+    # Walk through all inner bags of shiny gold, recursively
+    count = 0
+
+    def add_children(bt: BagType, multiplier: int = 1):
+        for p, (c, child) in bt.inner_bags.items():
+            nonlocal count
+            count += c * multiplier
+            add_children(child, multiplier * c)
+
+    add_children(bag_types["shiny gold"])
+    return count
