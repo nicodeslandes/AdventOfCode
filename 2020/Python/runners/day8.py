@@ -1,5 +1,7 @@
+import logging
 from typing import Iterable, List, Tuple
 from logging import debug, info
+from runners.utils import isEnabled
 
 
 def read_instructions(input: List[str]) -> Iterable[Tuple[str, int]]:
@@ -8,9 +10,8 @@ def read_instructions(input: List[str]) -> Iterable[Tuple[str, int]]:
         yield instr, int(arg)
 
 
-def part1(input: List[str]) -> int:
+def run(code: List[Tuple[str, int]]) -> Tuple[int, bool]:
     ips = set()
-    code = list(read_instructions(input))
     ip, acc = 1, 0
     while True:
         inst, arg = code[ip-1]
@@ -24,34 +25,22 @@ def part1(input: List[str]) -> int:
             ip += arg
 
         if ip in ips:
-            return acc
+            return acc, False
+
+        if ip == len(code) + 1:
+            return acc, True
+
         ips.add(ip)
+
+
+def part1(input: List[str]) -> int:
+    code = list(read_instructions(input))
+    output, _ = run(code)
+    return output
 
 
 def part2(input: List[str]) -> int:
     code = list(read_instructions(input))
-
-    def run(code: List[Tuple[str, int]]) -> Tuple[int, bool]:
-        ips = set()
-        ip, acc = 1, 0
-        while True:
-            inst, arg = code[ip-1]
-            debug("Runnning code at %d: %s %d; acc: %d", ip, inst, arg, acc)
-            if inst == "nop":
-                ip += 1
-            elif inst == "acc":
-                acc += arg
-                ip += 1
-            else:
-                ip += arg
-
-            if ip in ips:
-                return acc, False
-
-            if ip == len(code) + 1:
-                return acc, True
-
-            ips.add(ip)
 
     for i in range(len(code)):
         patched = list(code)
@@ -63,7 +52,8 @@ def part2(input: List[str]) -> int:
         else:
             continue
 
-        debug("Code: \n%s", "\n".join(str(x) for x in patched))
+        if isEnabled(logging.DEBUG):
+            debug("Code: \n%s", "\n".join(str(x) for x in patched))
         output, finished = run(patched)
         info("Result: %s", (output, finished))
         if finished:
