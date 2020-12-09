@@ -12,9 +12,7 @@ def is_pair_sum(n: int, last_n: List[int]) -> bool:
     return False
 
 
-def part1(input: List[str], is_test: bool) -> int:
-    preamble_length = 5 if is_test else 25
-    numbers = (int(x) for x in input)
+def find_weakness(preamble_length: int, numbers: List[int]) -> int:
     last_n = []
     for n in numbers:
         if len(last_n) < preamble_length:
@@ -29,23 +27,16 @@ def part1(input: List[str], is_test: bool) -> int:
     raise Exception("Could not find weakness")
 
 
+def part1(input: List[str], is_test: bool) -> int:
+    preamble_length = 5 if is_test else 25
+    numbers = list(int(x) for x in input)
+    return find_weakness(preamble_length, numbers)
+
+
 def part2(input: List[str], is_test: bool) -> int:
     preamble_length = 5 if is_test else 25
     numbers = list(int(x) for x in input)
-    last_n = []
-    weakness = None
-    for n in numbers:
-        if len(last_n) < preamble_length:
-            last_n.append(n)
-            continue
-
-        if not is_pair_sum(n, last_n):
-            weakness = n
-        last_n.append(n)
-        last_n.pop(0)
-
-    if not weakness:
-        raise Exception("Could not find weakness")
+    weakness = find_weakness(preamble_length, numbers)
 
     prefixes = []
     psum = 0
