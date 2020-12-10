@@ -1,4 +1,4 @@
-Result: 2046
+Result: 19208
 Input:
 28
 33
