@@ -1,0 +1,4 @@
+Result: 2
+Input:
+1
+2
