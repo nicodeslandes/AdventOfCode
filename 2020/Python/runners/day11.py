@@ -86,9 +86,46 @@ def next(g: Grid) -> Grid:
     return new
 
 
+xds = [-1, 0, 1]
+yds = [-1, 0, 1]
+
+
+def next2(g: Grid) -> Grid:
+    def count_visible_occupied_seats(x: int, y: int) -> int:
+        c = 0
+        for (xd, yd) in ((xd, yd) for xd in xds for yd in yds if (xd, yd) != (0, 0)):
+            nx = x + xd
+            ny = y + yd
+            while nx >= 0 and nx < X and ny >= 0 and ny < Y:
+                if g[ny][nx] == Status.FLOOR:
+                    nx += xd
+                    ny += yd
+                else:
+                    if g[ny][nx] == Status.OCCUPIED:
+                        c += 1
+                    break
+        return c
+
+    X = len(g[0])
+    Y = len(g)
+    new = clone_grid(g)
+    for x in range(X):
+        for y in range(Y):
+            c = count_visible_occupied_seats(x, y)
+            seat = g[y][x]
+            debug("Visible occupied seats for %s (%s): %d", (x, y), seat, c)
+            if seat == Status.FREE and c == 0:
+                new[y][x] = Status.OCCUPIED
+            if seat == Status.OCCUPIED and c >= 5:
+                new[y][x] = Status.FREE
+
+    return new
+
+
 def part1(input: List[str]) -> int:
     current = read_grid(input)
     while True:
+        #print(".", end='')
         if isEnabled(logging.INFO):
             info("Current grid: %s", display_grid(current))
         new = next(current)
@@ -99,4 +136,17 @@ def part1(input: List[str]) -> int:
 
         current = new
 
-# def part2(input: List[str]) -> int:
+
+def part2(input: List[str]) -> int:
+    current = read_grid(input)
+    while True:
+        #print(".", end='')
+        if isEnabled(logging.INFO):
+            info("Current grid: %s", display_grid(current))
+        new = next2(current)
+        if isEnabled(logging.DEBUG):
+            debug("New grid: %s", display_grid(new))
+        if compare_grids(current, new):
+            return sum(count(x for x in row if x == Status.OCCUPIED) for row in current)
+
+        current = new
