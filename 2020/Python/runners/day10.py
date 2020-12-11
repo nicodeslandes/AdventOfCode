@@ -35,14 +35,10 @@ def part2(input: List[str]) -> int:
         else:
             diffs[d] += 1
 
-    #diffs[3] += 1
     info("Diffs: %s", diffs)
 
     def get_jolt_diff(index: int):
         current = jolts[index]
-        # if index >= len(jolts) - 1:
-        #     return 3
-        # else:
         next = jolts[index + 1]
         return next - current
 
