@@ -1,0 +1,13 @@
+Result: 286
+Input:
+F10
+N3
+S3
+N3
+F7
+R90
+L90
+R90
+E33
+W33
+F11

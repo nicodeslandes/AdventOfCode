@@ -38,6 +38,7 @@ class Ship:
     def __init__(self):
         self.direction = Direction.E
         self.pos = 0, 0
+        self.waypoint = 10, -1
 
     def move(self, action: Action):
         debug("Pos: %s, Movement: %s,%d", self.pos, action.dir, action.dist)
@@ -47,9 +48,9 @@ class Ship:
         elif action.dir == Direction.S:
             self.pos = x, y + action.dist
         elif action.dir == Direction.E:
-            self.pos = x - action.dist, y
-        elif action.dir == Direction.W:
             self.pos = x + action.dist, y
+        elif action.dir == Direction.W:
+            self.pos = x - action.dist, y
         elif action.dir == Direction.F:
             self.move(Action(self.direction, action.dist))
         elif action.dir == Direction.R:
@@ -61,6 +62,41 @@ class Ship:
         else:
             raise Exception(f'Huh? {action.dir}')
 
+    def move2(self, action: Action):
+        debug("Pos: %s, WP: %s, Movement: %s,%d", self.pos,
+              self.waypoint, action.dir, action.dist)
+        x, y = self.waypoint
+        if action.dir == Direction.N:
+            self.waypoint = x, y - action.dist
+        elif action.dir == Direction.S:
+            self.waypoint = x, y + action.dist
+        elif action.dir == Direction.E:
+            self.waypoint = x + action.dist, y
+        elif action.dir == Direction.W:
+            self.waypoint = x - action.dist, y
+        elif action.dir == Direction.F:
+            px, py = self.pos
+            px += x * action.dist
+            py += y * action.dist
+            self.pos = px, py
+        elif action.dir == Direction.R:
+            if action.dist % 90 != 0 or action.dist < 0:
+                raise Exception(f"What??? {action.dist}")
+            for _ in range(action.dist // 90):
+                x, y = self.waypoint
+                self.waypoint = -y, x
+        elif action.dir == Direction.L:
+            if action.dist % 90 != 0 or action.dist < 0:
+                raise Exception(f"What??? {action.dist}")
+            for _ in range(action.dist // 90):
+                x, y = self.waypoint
+                self.waypoint = y, -x
+        else:
+            raise Exception(f'Huh? {action.dir}')
+
+        debug("Pos: %s, WP: %s, Movement: %s,%d", self.pos,
+              self.waypoint, action.dir, action.dist)
+
 
 def part1(input: List[str]) -> int:
     s = Ship()
@@ -69,4 +105,10 @@ def part1(input: List[str]) -> int:
         s.move(action)
     return abs(s.pos[0]) + abs(s.pos[1])
 
-# def part2(input: List[str]) -> int:
+
+def part2(input: List[str]) -> int:
+    s = Ship()
+    for line in input:
+        action = Action(Direction[line[0]], int(line[1:]))
+        s.move2(action)
+    return abs(s.pos[0]) + abs(s.pos[1])
