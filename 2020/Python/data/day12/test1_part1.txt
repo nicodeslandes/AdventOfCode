@@ -1,0 +1,7 @@
+Result: 25
+Input:
+F10
+N3
+F7
+R90
+F11
