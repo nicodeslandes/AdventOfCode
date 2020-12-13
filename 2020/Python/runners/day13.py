@@ -42,9 +42,12 @@ def part2(input: List[str]) -> int:
     prev = None
     max_incr = 0
     offset = 0
-    for id, m in modulos.items():
-        if prev is not None:
-            pid, pm = prev
+
+    modulos_list = list(modulos.items())
+    for i in range(len(modulos_list)):
+        for j in range(i+1, len(modulos_list)):
+            pid, pm = modulos_list[i]
+            id, m = modulos_list[j]
             debug("Solving %d,%d,%d", pid, -id, m - pm)
             [s1, s2] = isolve(pid, -id, m - pm)
             #t = a . n + b
@@ -57,13 +60,12 @@ def part2(input: List[str]) -> int:
             #debug("gcd(%d, %d) = %d", pid, id, math.gcd(pid, id))
             debug("%d - %d*n, %d - %d*n", s1, id, s2, pid)
             debug("Solution: t=%d*n + %d = %d*n + %d", a, b, aa, bb)
-            info("Solution: t=%d*n + %d", a, b)
+            info("Solution: t=%d*n + %d", abs(a), b)
             incr = abs(a)
             if max_incr < incr:
                 debug("New increment,offset: %d, %d", incr, offset)
                 max_incr = incr
                 offset = b
-        prev = (id, m)
 
     ts = offset
     info("Increment,offset: %d, %d", max_incr, ts)
