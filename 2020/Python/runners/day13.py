@@ -19,6 +19,11 @@ def part1(input: List[str]) -> int:
 
 
 def isolve(a, b, c):
+    """Solves a single diophantine equation of the form ax + by = c
+       (Stolen from https://www.math.utah.edu/~carlson/hsp2004/PythonShortCourse.pdf, page 12 😋)
+       It returns an array [s1,s2] representing the solution space:
+        S = {(s1 + n*b, s2 - n*a), n ∈ ℤ}
+    """
     q, r = divmod(a, b)
     if r == 0:
         return([0, c//b])
@@ -39,44 +44,42 @@ def part2(input: List[str]) -> int:
 
     info("Modulos: %s", modulos)
 
-    prev = None
-    max_incr = 0
-    offset = 0
-
     modulos_list = list(modulos.items())
-    for i in range(len(modulos_list)):
-        for j in range(i+1, len(modulos_list)):
-            pid, pm = modulos_list[i]
-            id, m = modulos_list[j]
-            debug("Solving %d,%d,%d", pid, -id, m - pm)
-            [s1, s2] = isolve(pid, -id, m - pm)
-            #t = a . n + b
-            b = pid * s1 + pm
-            a = pid * -id
+    incr = modulos_list[0][0]
+    offset = -modulos_list[0][1]
+    debug("Current solution space: %d + %dn", offset, incr)
 
-            bb = id * s2 + m
-            aa = a
+    for i in range(1, len(modulos_list)):
+        # Current solution: offset + n*incr
+        id, m = modulos_list[i]
 
-            #debug("gcd(%d, %d) = %d", pid, id, math.gcd(pid, id))
-            debug("%d - %d*n, %d - %d*n", s1, id, s2, pid)
-            debug("Solution: t=%d*n + %d = %d*n + %d", a, b, aa, bb)
-            info("Solution: t=%d*n + %d", abs(a), b)
-            incr = abs(a)
-            if max_incr < incr:
-                debug("New increment,offset: %d, %d", incr, offset)
-                max_incr = incr
-                offset = b
+        # We need to solve:
+        #  t = offset + n1*incr (the current solution space)
+        #    = m + id*n2        (the new requirement for the current bus)
 
-    ts = offset
-    info("Increment,offset: %d, %d", max_incr, ts)
-    if ts < 0:
-        ts += (1 + (-offset) // max_incr) * max_incr
+        # First, we solve: (1) off + n1*incr = m - id*n2
+        #              ie: (2) n1*inc + n2*id = -offset+m
 
-    info("Increment,offset: %d, %d", max_incr, ts)
-    while not all(ts % id == m for id, m in modulos.items()):
-        ts += max_incr
-        debug("ts: %d", ts)
-        # if isEnabled(logging.DEBUG):
-        #     debug("%s", [(ts, id, ts % id, m) for id, m in modulos.items()])
+        [s1, s2] = isolve(incr, id, m - offset)
 
-    return ts
+        # Solutions are n1 = s1 + n.id, n2 = s2 - n.inc
+
+        # This means (1) becomes: t = off + (s1 + n.id).inc = m + (-s2 + n.inc).id
+        #                       (and btw => off + s1.inc = m - s2.id )
+        # so (3) t = (off + s1.inc) + n.(id.inc)
+        # (or t = (m - s2.id) + n.(id.inc))
+
+        # In other words, valid values t remain in the form t = a' + n*b',
+        # and so we can now update offset and incr from (3):
+        offset += s1*incr
+        incr *= id
+
+        # We can also bring offset to the first positive congruent value mod incr:
+        if offset < 0:
+            offset += (1 + (-offset) // incr) * incr
+        offset %= incr
+
+        debug("New offset,inc = %d,%d", offset, incr)
+        debug("Current solution space: %d + %dn", offset, incr)
+
+    return offset
