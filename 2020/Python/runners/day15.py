@@ -3,9 +3,8 @@ import itertools
 from logging import debug
 
 
-def part1(input: List[str]) -> int:
+def get_nth(start, nth):
     numbers_turns = {}
-    start = list(map(int, input[0].split(',')))
     for n in start:
         numbers_turns[int(n)] = []
     last = start[-1]
@@ -39,7 +38,14 @@ def part1(input: List[str]) -> int:
                 [t1, t2] = turns
                 yield produce(t2-t1)
             i += 1
+    return next(itertools.islice(play(), nth - 1, None))
 
-    return next(itertools.islice(play(), 2019, None))
 
-# def part2(input: List[str]) -> int:
+def part1(input: List[str]) -> int:
+    start = list(map(int, input[0].split(',')))
+    return get_nth(start, 2020)
+
+
+def part2(input: List[str]) -> int:
+    start = list(map(int, input[0].split(',')))
+    return get_nth(start, 30000000)
