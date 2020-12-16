@@ -21,8 +21,11 @@ def get_nth(start, nth):
             turns = numbers_turns.get(value)
             if turns is None:
                 numbers_turns[value] = [i]
+            elif len(turns) == 2:
+                turns[0] = turns[1]
+                turns[1] = i
             else:
-                numbers_turns[value] = [turns[-1], i]
+                numbers_turns[value] = [turns[0], i]
 
             nonlocal last
             debug("Last value: %d, producing value %d; turns: %s",
