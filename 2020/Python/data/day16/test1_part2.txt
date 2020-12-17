@@ -1,4 +1,4 @@
-Result: 0
+Result: 1
 Input:
 class: 1-3 or 5-7
 row: 6-11 or 33-44

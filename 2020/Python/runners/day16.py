@@ -98,9 +98,9 @@ def part2(input: List[str]) -> int:
     unknown_fields = fields.copy()
     prev_count = 0
     while any(unknown_fields):
-        if len(unknown_fields) == 1:
-            info("Only unknown field is %s", list(unknown_fields.keys())[0])
-            break
+        # if len(unknown_fields) == 1:
+        #     info("Only unknown field is %s", list(unknown_fields.keys())[0])
+        #     break
         for i in range(len(nearby_tickets[0])):
             if i in known_fields:
                 continue
