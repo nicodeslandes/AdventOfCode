@@ -11,7 +11,7 @@ class Status(Enum):
     ACTIVE = 1
 
 
-Grid = List[List[List[Status]]]
+Grid = List[List[List[List[Status]]]]
 
 
 def read_grid(input: List[str]) -> Grid:
@@ -21,7 +21,7 @@ def read_grid(input: List[str]) -> Grid:
                 yield Status.INACTIVE
             else:
                 yield Status.ACTIVE
-    return [[list(read_row(line)) for line in input]]
+    return [[[list(read_row(line)) for line in input]]]
 
 
 # def compare_grids(g1: Grid, g2: Grid) -> bool:
@@ -36,9 +36,10 @@ def read_grid(input: List[str]) -> Grid:
 
 
 def display_grid(g: Grid):
-    X = len(g[0][0])
-    Y = len(g[0])
-    Z = len(g)
+    X = len(g[0][0][0])
+    Y = len(g[0][0])
+    Z = len(g[0])
+    W = len(g)
 
     def print_seat(seat: Status) -> str:
         if seat == Status.INACTIVE:
@@ -48,73 +49,97 @@ def display_grid(g: Grid):
         raise Exception("Unknown")
 
     s = ""
-    for z in range(Z):
-        s += f"\nz={z}"
-        for y in range(Y):
-            s += "\n"
-            s += "".join(print_seat(s) for s in g[z][y])
+    for w in range(W):
+        for z in range(Z):
+            s += f"\nz={z}, w={w}"
+            for y in range(Y):
+                s += "\n"
+                s += "".join(print_seat(s) for s in g[w][z][y])
 
     return s
 
 
 def has_active_border_cubes(g: Grid) -> bool:
-    X = len(g[0][0])
-    Y = len(g[0])
-    Z = len(g)
+    X = len(g[0][0][0])
+    Y = len(g[0][0])
+    Z = len(g[0])
+    W = len(g)
 
     def has_active_cubes_on_plane(plane: List[List[Status]]) -> bool:
-        for y in range(Y):
-            if any(c for row in plane for c in row if c == Status.ACTIVE):
-                return True
-        return False
+        return any(row for row in plane if has_active_cubes_on_row(row))
+
+    def has_active_cubes_on_cube(cube: List[List[List[Status]]]) -> bool:
+        return any(plane for plane in cube if has_active_cubes_on_plane(plane))
 
     def has_active_cubes_on_row(row: List[Status]) -> bool:
         return any(c for c in row if c == Status.ACTIVE)
 
-    # Check z=0 and z = max
-    if has_active_cubes_on_plane(g[0]) or has_active_cubes_on_plane(g[-1]):
+    # Check w=0 and w = max
+    if has_active_cubes_on_cube(g[0]) or has_active_cubes_on_cube(g[-1]):
         return True
 
-    # Otherwise we want to know if any cube is on the border of any plane
-    for z in range(1, Z - 1):
-        plane = g[z]
-        # Check y = 0, y = max
-        if has_active_cubes_on_row(plane[0]) or has_active_cubes_on_row(plane[-1]):
+    # Otherwise we want to know if any cube is on the border of any cube
+    for w in range(1, W - 1):
+        cube = g[w]
+        if has_active_cubes_on_plane(cube[0]) or has_active_cubes_on_plane(cube[-1]):
             return True
 
-        for y in range(1, Y-1):
-            if plane[y][0] == Status.ACTIVE or plane[y][-1] == Status.ACTIVE:
+        # Otherwise we want to know if any cube is on the border of any plane
+        for z in range(1, Z - 1):
+            plane = cube[z]
+            # Check y = 0, y = max
+            if has_active_cubes_on_row(plane[0]) or has_active_cubes_on_row(plane[-1]):
                 return True
+
+            for y in range(1, Y-1):
+                if plane[y][0] == Status.ACTIVE or plane[y][-1] == Status.ACTIVE:
+                    return True
 
     return False
 
 
 def clone_grid(g: Grid) -> Grid:
-    clone = [[list(row) for row in plane] for plane in g]
+    clone = [[[list(row) for row in plane] for plane in cube] for cube in g]
     if has_active_border_cubes(clone):
-        X = len(g[0][0])
-        Y = len(g[0])
-        Z = len(g)
+        X = len(g[0][0][0])
+        Y = len(g[0][0])
+        Z = len(g[0])
+        W = len(g)
 
         # Add an extra layer in all direction:
-        empty_plane1 = [
-            [Status.INACTIVE for x in range(X+2)] for y in range(Y+2)]
-        empty_plane2 = [
-            [Status.INACTIVE for x in range(X+2)] for y in range(Y+2)]
-        new_clone = [empty_plane1]
-        for plane in clone:
-            empty_row1 = [Status.INACTIVE for x in range(X+2)]
-            empty_row2 = [Status.INACTIVE for x in range(X+2)]
-            new_plane = [empty_row1]
-            for row in plane:
-                new_row = [Status.INACTIVE]
-                for s in row:
-                    new_row.append(s)
-                new_row.append(Status.INACTIVE)
-                new_plane.append(new_row)
-            new_plane.append(empty_row2)
-            new_clone.append(new_plane)
-        new_clone.append(empty_plane2)
+        empty_cube1 = [
+            [
+                [Status.INACTIVE for x in range(X+2)]
+                for y in range(Y+2)]
+            for z in range(Z+2)]
+        empty_cube2 = [
+            [
+                [Status.INACTIVE for x in range(X+2)]
+                for y in range(Y+2)]
+            for z in range(Z+2)]
+
+        new_clone = [empty_cube1]
+        for cube in clone:
+            empty_plane1 = [
+                [Status.INACTIVE for x in range(X+2)] for y in range(Y+2)]
+            empty_plane2 = [
+                [Status.INACTIVE for x in range(X+2)] for y in range(Y+2)]
+            new_cube = [empty_plane1]
+            for plane in cube:
+                empty_row1 = [Status.INACTIVE for x in range(X+2)]
+                empty_row2 = [Status.INACTIVE for x in range(X+2)]
+                new_plane = [empty_row1]
+                for row in plane:
+                    new_row = [Status.INACTIVE]
+                    for s in row:
+                        new_row.append(s)
+                    new_row.append(Status.INACTIVE)
+                    new_plane.append(new_row)
+                new_plane.append(empty_row2)
+                new_cube.append(new_plane)
+            new_cube.append(empty_plane2)
+            new_clone.append(new_cube)
+        new_clone.append(empty_cube2)
         clone = new_clone
     return clone
 
@@ -122,16 +147,18 @@ def clone_grid(g: Grid) -> Grid:
 xds = [-1, 0, 1]
 yds = [-1, 0, 1]
 zds = [-1, 0, 1]
+wds = [-1, 0, 1]
 
 
 def next(g: Grid) -> Grid:
-    def count_active_neighbours(x: int, y: int, z: int) -> int:
+    def count_active_neighbours(x: int, y: int, z: int, w: int) -> int:
         return count(s for xd in xds
                      for yd in yds
                      for zd in zds
-                     for nx, ny, nz in [(x+xd, y+yd, z+zd)]
-                     if nx >= 0 and ny >= 0 and nz >= 0 and nx < X and ny < Y and nz < Z and (xd, yd, zd) != (0, 0, 0)
-                     for s in [g[nz][ny][nx]] if s == Status.ACTIVE)
+                     for wd in wds
+                     for nx, ny, nz, nw in [(x+xd, y+yd, z+zd, w+wd)]
+                     if nx >= 0 and ny >= 0 and nz >= 0 and nw >= 0 and nx < X and ny < Y and nz < Z and nw < W and (xd, yd, zd, wd) != (0, 0, 0, 0)
+                     for s in [g[nw][nz][ny][nx]] if s == Status.ACTIVE)
 
     new = clone_grid(g)
     if has_active_border_cubes(new):
@@ -139,21 +166,23 @@ def next(g: Grid) -> Grid:
 
     if has_active_border_cubes(g):
         g = clone_grid(g)
-    X = len(new[0][0])
-    Y = len(new[0])
-    Z = len(new)
+    X = len(new[0][0][0])
+    Y = len(new[0][0])
+    Z = len(new[0])
+    W = len(new)
     if isEnabled(logging.INFO):
         info("Current cloned grid: %s", display_grid(new))
     for x in range(X):
         for y in range(Y):
             for z in range(Z):
-                c = count_active_neighbours(x, y, z)
-                seat = g[z][y][x]
-                #debug("Adjacent seats for %s (%s): %d", (x, y, z), seat, c)
-                if seat == Status.ACTIVE and not (c == 2 or c == 3):
-                    new[z][y][x] = Status.INACTIVE
-                if seat == Status.INACTIVE and c == 3:
-                    new[z][y][x] = Status.ACTIVE
+                for w in range(W):
+                    c = count_active_neighbours(x, y, z, w)
+                    seat = g[w][z][y][x]
+                    #debug("Adjacent seats for %s (%s): %d", (x, y, z), seat, c)
+                    if seat == Status.ACTIVE and not (c == 2 or c == 3):
+                        new[w][z][y][x] = Status.INACTIVE
+                    if seat == Status.INACTIVE and c == 3:
+                        new[w][z][y][x] = Status.ACTIVE
 
     return new
 
@@ -170,7 +199,7 @@ def part1(input: List[str]) -> int:
 
         current = new
 
-    return sum(sum(sum(1 for c in row if c == Status.ACTIVE) for row in plane) for plane in current)
+    return sum(sum(sum(sum(1 for c in row if c == Status.ACTIVE) for row in plane) for plane in cube) for cube in current)
 
 
 # def part2(input: List[str]) -> int:
