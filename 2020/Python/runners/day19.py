@@ -78,33 +78,36 @@ def parse_rules_old(rule_strings: List[str]) -> Dict[int, Rule]:
     return rules
 
 
-def parse_rules(rule_strings: List[str]) -> Dict[int, str]:
+def parse_rules(raw_rules: Dict[int, str] = {}) -> Dict[int, str]:
     rules: Dict[int, str] = {}
-    raw_rules: Dict[int, str] = {}
-
-    for rule_string in rule_strings:
-        [rule_index, s] = rule_string.split(": ")
-        rule_index = int(rule_index)
-        raw_rules[rule_index] = s
 
     def get_rule(index: int) -> str:
         r = rules.get(index)
         if r:
             return r
         else:
-            r = parse_rule(raw_rules[index])
+            r = parse_rule(index, raw_rules[index])
             rules[index] = r
             return r
 
-    def parse_rule(rule_string: str) -> str:
+    def parse_rule(index, rule_string: str) -> str:
         debug("Parsing rule %s", rule_string)
+
+        if (index, rule_string) == (8, "42 | 42 8"):
+            return f"({get_rule(42)})+"
+        elif (index, rule_string) == (11, "42 31 | 42 11 31"):
+            r1 = f"({get_rule(42)})"
+            r2 = f"({get_rule(31)})"
+            # Cheat!!! Only allow up to 10 repetition for rule 11
+            return "(" + "|".join(r1*i + r2*i for i in range(1, 10)) + ")"
+
         if rule_string.startswith('"'):
             debug("Rule %s -> %s", rule_string, rule_string[1])
             return rule_string[1]
         else:
             or_rules_strings = rule_string.split(' | ')
             if len(or_rules_strings) > 1:
-                r = "(" + ")|(".join(parse_rule(clause)
+                r = "(" + ")|(".join(parse_rule(-1, clause)
                                      for clause in or_rules_strings) + ")"
             else:
                 r = "".join("(" + get_rule(int(r)) +
@@ -139,13 +142,14 @@ def part1_old(input: List[str]) -> int:
         else:
             inputs.append(line)
 
-    rules = parse_rules(rule_strings)
+    rules = parse_rules_old(rule_strings)
     return count(i for i in inputs if match_rule(i, rules, 0))
 
 
-def part1(input: List[str]) -> int:
+def parse_input(input: List[str]) -> Tuple[List[str], Dict[int, str]]:
     parsing_rules = True
     rule_strings = []
+    raw_rules = {}
     inputs = []
     for line in input:
         if parsing_rules:
@@ -156,8 +160,23 @@ def part1(input: List[str]) -> int:
         else:
             inputs.append(line)
 
-    rules = parse_rules(rule_strings)
+    for rule_string in rule_strings:
+        [rule_index, s] = rule_string.split(": ")
+        rule_index = int(rule_index)
+        raw_rules[rule_index] = s
+
+    return inputs, raw_rules
+
+
+def part1(input: List[str]) -> int:
+    inputs, raw_rules = parse_input(input)
+    rules = parse_rules(raw_rules)
     return count(i for i in inputs if re.fullmatch(rules[0], i))
 
 
-# def part2(input: List[str]) -> int:
+def part2(input: List[str]) -> int:
+    inputs, raw_rules = parse_input(input)
+    raw_rules[8] = "42 | 42 8"
+    raw_rules[11] = "42 31 | 42 11 31"
+    rules = parse_rules(raw_rules)
+    return count(i for i in inputs if re.fullmatch(rules[0], i))
