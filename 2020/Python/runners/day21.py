@@ -2,14 +2,17 @@ from logging import debug
 from typing import Dict, List, Set, Tuple
 
 
-def part1(input: List[str]) -> int:
+def parse_food_list(input):
     foods: List[Tuple[List[str], List[str]]] = []
     for line in input:
         [ingredients, allergens] = line.split(" (contains ")
         ingredients = ingredients.split(' ')
         allergens = allergens[:-1].split(', ')
         foods.append((ingredients, allergens))
+    return foods
 
+
+def get_allergens(foods):
     allergens_ingredients_repo: Dict[str, Set[str]] = {}
     all_ingredients = set()
     for (ingredients, allergens) in foods:
@@ -20,6 +23,12 @@ def part1(input: List[str]) -> int:
                 allergens_ingredients_repo[a] = set(ingredients)
             else:
                 allergens_ingredients.intersection_update(ingredients)
+    return allergens_ingredients_repo, all_ingredients
+
+
+def part1(input: List[str]) -> int:
+    foods = parse_food_list(input)
+    allergens_ingredients_repo, all_ingredients = get_allergens(foods)
 
     allergen_free_ingredients = [i for i in all_ingredients if not any(
         ai for ai in allergens_ingredients_repo.values() if i in ai)]
@@ -28,23 +37,8 @@ def part1(input: List[str]) -> int:
 
 
 def part2(input: List[str]) -> str:
-    foods: List[Tuple[List[str], List[str]]] = []
-    for line in input:
-        [ingredients, allergens] = line.split(" (contains ")
-        ingredients = ingredients.split(' ')
-        allergens = allergens[:-1].split(', ')
-        foods.append((ingredients, allergens))
-
-    allergens_ingredients_repo: Dict[str, Set[str]] = {}
-    all_ingredients = set()
-    for (ingredients, allergens) in foods:
-        all_ingredients.update(ingredients)
-        for a in allergens:
-            allergens_ingredients = allergens_ingredients_repo.get(a)
-            if allergens_ingredients is None:
-                allergens_ingredients_repo[a] = set(ingredients)
-            else:
-                allergens_ingredients.intersection_update(ingredients)
+    foods = parse_food_list(input)
+    allergens_ingredients_repo, all_ingredients = get_allergens(foods)
 
     allergen_free_ingredients = [i for i in all_ingredients if not any(
         ai for ai in allergens_ingredients_repo.values() if i in ai)]
