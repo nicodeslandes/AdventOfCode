@@ -11,11 +11,13 @@ import shutil
 import time
 from inspect import signature
 
+
 class Options:
     useTestFile: int
 
     def __init__(self, useTestFile: int):
         self.useTestFile = useTestFile
+
 
 class PuzzleRunner:
     def __init__(self, options: Options):
@@ -45,19 +47,23 @@ class PuzzleRunner:
             if f"part{part}" in day_module.__dict__:
                 test = 1
                 while True:
-                    test_file = self.data_loader.get_input_file_path(day, part, test)
+                    test_file = self.data_loader.get_input_file_path(
+                        day, part, test)
                     if os.path.exists(test_file):
                         self._run_puzzle(day_module, day, part, test)
                         test += 1
                     else:
                         break
-        
+
         debug("Running all tests for day %d", day)
-        if part is None or part == 1: try_run_part(1)
-        if part is None or part == 2: try_run_part(2)
+        if part is None or part == 1:
+            try_run_part(1)
+        if part is None or part == 2:
+            try_run_part(2)
 
     def _run_puzzle(self, day_module: Any, day: int, part: Optional[int], test: Optional[int]):
-        info("Executing puzzle for day %d%s%s", day, f" part {part}" if part else "", f" test {test}" if test else "")
+        info("Executing puzzle for day %d%s%s", day,
+             f" part {part}" if part else "", f" test {test}" if test else "")
         if part is not None:
             debug("Only executing part %d", part)
 
@@ -68,22 +74,24 @@ class PuzzleRunner:
                     # Check if we can pass an "is_test" argument
                     sig = signature(func)
                     if "is_test" in sig.parameters:
-                        return func(input, is_test = test is not None)
+                        return func(input, is_test=test is not None)
                     else:
                         return func(input)
-                        
+
                 self.run(day, part, test, run)
 
-        if (part is None or part == 1): run_part_if_present(1)
-        if (part is None or part == 2): run_part_if_present(2)
+        if (part is None or part == 1):
+            run_part_if_present(1)
+        if (part is None or part == 2):
+            run_part_if_present(2)
 
-    def run(self, day: int, part: int, test: Optional[int], func: Callable[[List[str]], int]) -> None:
+    def run(self, day: int, part: int, test: Optional[int], func: Callable[[List[str]], Any]) -> None:
         puzzle_data = self.data_loader.get_puzzle_data(day, part, test)
         input = puzzle_data.get_data()
         expected_result = puzzle_data.get_expected_result()
 
         start = time.perf_counter()
-        result: int = func(input)
+        result: Any = func(input)
 
         comparison_result = ""
         if expected_result is not None:
@@ -111,4 +119,5 @@ class PuzzleRunner:
 
         print("Adding new solution file for day", day)
         path = os.path.dirname(os.path.abspath(__file__))
-        shutil.copy2(f'{path}/runners/template.py', f'{path}/runners/{day_module}.py')
+        shutil.copy2(f'{path}/runners/template.py',
+                     f'{path}/runners/{day_module}.py')
