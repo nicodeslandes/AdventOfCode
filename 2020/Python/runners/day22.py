@@ -17,20 +17,20 @@ def parse_decks(input: List[str]) -> Tuple[Deck, Deck]:
 
 def part1(input: List[str]) -> int:
     deck1, deck2 = parse_decks(input)
-    deck1.reverse()
-    deck2.reverse()
 
     while any(deck1) and any(deck2):
-        c1 = deck1.pop()
-        c2 = deck2.pop()
+        c1 = deck1.pop(0)
+        c2 = deck2.pop(0)
         if c1 > c2:
-            deck1.insert(0, c1)
-            deck1.insert(0, c2)
+            deck1.append(c1)
+            deck1.append(c2)
         else:
-            deck2.insert(0, c2)
-            deck2.insert(0, c1)
+            deck2.append(c2)
+            deck2.append(c1)
 
     winner_deck = deck1 if any(deck1) else deck2
-    return sum((i+1)*winner_deck[i] for i in range(len(winner_deck)))
+    return sum((i+1)*winner_deck[len(winner_deck)-i-1] for i in range(len(winner_deck)))
 
-# def part2(input: List[str]) -> int:
+
+def part2(input: List[str]) -> int:
+    return 0
