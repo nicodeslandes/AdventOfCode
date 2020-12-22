@@ -27,23 +27,30 @@ def match(tile1: Tile, tile2: Tile):
     X = len(tile1[0])
     Y = len(tile1)
 
-    xds = [-1, 1]
-    yds = [-1, 1]
-    for xd in xds:
-        for yd in yds:
-            # Attempt a match with tile2 sitting at pos (xd,yd) relative to tile1
+    # xds = [-1, 1]
+    # yds = [-1, 1]
+    # for xd in xds:
+    #     for yd in yds:
+    #         # Attempt a match with tile2 sitting at pos (xd,yd) relative to tile1
 
     def get_sides(tile: Tile):
-        yield tile[0]
-        yield tile[-1]
-        yield [c for y in range(Y) for c in [tile[y][0]]]
-        yield [c for y in range(Y) for c in [tile[y][-1]]]
+        yield (0, 1), tile[0]
+        yield (0, -1), tile[-1]
+        yield (-1, 0), [c for y in range(Y) for c in [tile[y][0]]]
+        yield (1, 0), [c for y in range(Y) for c in [tile[y][-1]]]
 
     # Try to match up sides
-    for side1 in get_sides(tile1):
-        for side2 in get_sides(tile2):
+    for id1, side1 in get_sides(tile1):
+        for id2, side2 in get_sides(tile2):
             if side1 == side2 or side1 == list(reversed(side2)):
-                return True
+                is_reversed = side1 != side2
+                if id1 == 'U' and id2 == 'D':
+                    return True, (0, 1), (int(is_reversed), 0)
+                if id1 == 'U' and id2 == 'U':
+
+                if (id1, id2) = ''
+                #
+
     return False
 
 
