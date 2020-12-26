@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "advent.py",
-            "args": ["-r","21", "-p", "1", "-vv", "-t1"],
+            "args": ["-r","23", "-p", "1", "-vv", "-t1"],
             "console": "integratedTerminal"
         }
     ]
