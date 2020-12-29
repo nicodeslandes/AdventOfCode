@@ -1,7 +1,8 @@
+import logging
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 from logging import debug, info
 from enum import Enum
-from runners.utils import product
+from runners.utils import isEnabled, product
 
 Tile = List[List[int]]
 
@@ -16,13 +17,14 @@ def parse_tiles(input: List[str]) -> Dict[int, Tile]:
             tile = []
             tiles[tile_id] = tile
         elif line != "":
-            tile.append([0 if ch == '.' else 1 for ch in line])
+            tile.append([1 if ch == '#' else 0 for ch in line])
     return tiles
 
 
 def display_tile(tile: Tile):
-    for row in tile:
-        debug("%s", "".join(('▒▒' if c == 0 else '██' for c in row)))
+    if isEnabled(logging.DEBUG):
+        for row in tile:
+            debug("%s", "".join(('▒▒' if c == 0 else '██' for c in row)))
 
 
 class Direction(Enum):
@@ -62,6 +64,20 @@ def flip_vert(tile: Tile) -> Tile:
     return tile[::-1]
 
 
+def get_transformations(tile: Tile):
+    def get_rotate_transforms():
+        yield tile
+        t = tile
+        for i in range(3):
+            t = rotate(t)
+            yield t
+
+    for t in get_rotate_transforms():
+        yield t
+        yield flip_horiz(t)
+        yield flip_vert(t)
+
+
 def match(tile1: Tile, tile2: Tile) -> Optional[Tuple[Pos, Tile]]:
     X = len(tile1[0])
     Y = len(tile1)
@@ -71,19 +87,6 @@ def match(tile1: Tile, tile2: Tile) -> Optional[Tuple[Pos, Tile]]:
         yield (0, -1), lambda t1, t2: get_side(t1, Direction.D) == get_side(t2, Direction.U)
         yield (-1, 0), lambda t1, t2: get_side(t1, Direction.L) == get_side(t2, Direction.R)
         yield (1, 0), lambda t1, t2: get_side(t1, Direction.R) == get_side(t2, Direction.L)
-
-    def get_transformations(tile: Tile):
-        def get_rotate_transforms():
-            yield tile
-            t = tile
-            for i in range(3):
-                t = rotate(t)
-                yield t
-
-        for t in get_rotate_transforms():
-            yield t
-            yield flip_horiz(t)
-            yield flip_vert(t)
 
     # Try to match up all transformations of tile2
     for t2 in get_transformations(tile2):
@@ -145,6 +148,16 @@ def part1(input: List[str]) -> int:
     return product(tile_id_grid[(x, y)] for x in (min_x, max_x) for y in (min_y, max_y))
 
 
+def parse_sea_monster() -> Tile:
+    return parse_tiles(
+        [
+            "Tile 0:",
+            "                  # ",
+            "#    ##    ##    ###",
+            " #  #  #  #  #  #   "]
+    )[0]
+
+
 def part2(input: List[str]) -> int:
     tiles = parse_tiles(input)
     tile_grid, tile_id_grid = arrange_tiles(tiles)
@@ -152,19 +165,53 @@ def part2(input: List[str]) -> int:
 
     tile_x = len(tile_grid[(0, 0)][0])
     tile_y = len(tile_grid[(0, 0)])
-    picture = {}
+    picture = [[0 for x in range((max_x - min_x + 1) * (tile_x - 2))]
+               for y in range((max_y - min_y + 1) * (tile_y - 2))]
     for y in range(max_y, min_y - 1, -1):
         for x in range(min_x, max_x + 1):
             tile = tile_grid[(x, y)]
             for cx in range(1, tile_x - 1):
                 for cy in range(1, tile_y - 1):
-                    picture[(x-min_x) * (tile_x-2) + cx - 1, (y - min_y + 1) *
-                            (tile_y-2) - cy] = tile[cy][cx]
+                    py = (y - min_y + 1) * (tile_y-2) - cy
+                    px = (x-min_x) * (tile_x-2) + cx - 1
+                    picture[py][px] = tile[cy][cx]
 
     X = (tile_x - 2) * (max_x - min_x + 1)
     Y = (tile_y - 2) * (max_y - min_y + 1)
     for y in range(Y-1, -1, -1):
-        row = ['██' if picture[x, y] else '▒▒' for x in range(X)]
+        row = ['██' if picture[y][x] else '▒▒' for x in range(X)]
         debug("".join(row))
 
-    return 0
+    sea_monster = parse_sea_monster()
+    SX = len(sea_monster[0])
+    SY = len(sea_monster)
+
+    def is_sea_monster_at(t: Tile, pos: Pos):
+        for r in range(SY):
+            for sx in range(SX):
+                sy = -r
+                if sea_monster[r][sx] == 1 and t[pos[1] + sy][pos[0] + sx] != 1:
+                    return False
+        return True
+
+    count = 0
+    for t in get_transformations(picture):
+        debug("Checking for sea monsters in:")
+        display_tile(t)
+        if t[0][:5] == [0, 1, 1, 1, 1]:
+            breakpoint()
+
+        for y in range(Y-1, SY-1, -1):
+            for x in range(0, X-SX):
+                if is_sea_monster_at(t, (x, y)):
+                    count += 1
+        debug("Found %d monsters", count)
+        if count != 0:
+            break
+
+    info("Sea monster count: %d", count)
+    sea_monster_cells = count * \
+        sum(sea_monster[y][x] for x in range(SX) for y in range(SY))
+    picture_cells = sum(picture[y][x] for x in range(X) for y in range(Y))
+
+    return picture_cells - sea_monster_cells
