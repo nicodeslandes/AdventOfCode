@@ -1,5 +1,7 @@
-from typing import Dict, List
-from logging import debug
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Tuple
+from logging import debug, info
+from enum import Enum
+from runners.utils import product
 
 Tile = List[List[int]]
 
@@ -20,55 +22,124 @@ def parse_tiles(input: List[str]) -> Dict[int, Tile]:
 
 def display_tile(tile: Tile):
     for row in tile:
-        debug("%s", "".join(('.' if c == 0 else '#' for c in row)))
+        debug("%s", "".join(('▒▒' if c == 0 else '██' for c in row)))
 
 
-def match(tile1: Tile, tile2: Tile):
+class Direction(Enum):
+    U = 1
+    D = 2
+    L = 3
+    R = 4
+
+
+Pos = Tuple[int, int]
+side_accessors: Dict[Direction, Callable[[Tile], List[int]]] = {
+    Direction.U: lambda t: t[0],
+    Direction.D: lambda t: t[-1],
+    Direction.L: lambda t: [c for y in range(len(t[0])) for c in [t[y][0]]],
+    Direction.R: lambda t: [c for y in range(len(t[0])) for c in [t[y][-1]]]
+}
+
+
+def get_side(tile: Tile, side: Direction) -> List[int]:
+    return side_accessors[side](tile)
+
+
+def rotate(tile: Tile) -> Tile:
+    X = len(tile[0])
+    Y = len(tile)
+    return [
+        [tile[y][Y-x-1] for y in range(X)]
+        for x in range(Y)
+    ]
+
+
+def flip_horiz(tile: Tile) -> Tile:
+    return [r[::-1] for r in tile]
+
+
+def flip_vert(tile: Tile) -> Tile:
+    return tile[::-1]
+
+
+def match(tile1: Tile, tile2: Tile) -> Optional[Tuple[Pos, Tile]]:
     X = len(tile1[0])
     Y = len(tile1)
 
-    # xds = [-1, 1]
-    # yds = [-1, 1]
-    # for xd in xds:
-    #     for yd in yds:
-    #         # Attempt a match with tile2 sitting at pos (xd,yd) relative to tile1
+    def get_sides() -> Iterator[Tuple[Pos, Callable[[Tile, Tile], bool]]]:
+        yield (0, 1), lambda t1, t2: get_side(t1, Direction.U) == get_side(t2, Direction.D)
+        yield (0, -1), lambda t1, t2: get_side(t1, Direction.D) == get_side(t2, Direction.U)
+        yield (-1, 0), lambda t1, t2: get_side(t1, Direction.L) == get_side(t2, Direction.R)
+        yield (1, 0), lambda t1, t2: get_side(t1, Direction.R) == get_side(t2, Direction.L)
 
-    def get_sides(tile: Tile):
-        yield (0, 1), tile[0]
-        yield (0, -1), tile[-1]
-        yield (-1, 0), [c for y in range(Y) for c in [tile[y][0]]]
-        yield (1, 0), [c for y in range(Y) for c in [tile[y][-1]]]
+    def get_transformations(tile: Tile):
+        def get_rotate_transforms():
+            yield tile
+            t = tile
+            for i in range(3):
+                t = rotate(t)
+                yield t
 
-    # Try to match up sides
-    for id1, side1 in get_sides(tile1):
-        for id2, side2 in get_sides(tile2):
-            if side1 == side2 or side1 == list(reversed(side2)):
-                is_reversed = side1 != side2
-                if id1 == 'U' and id2 == 'D':
-                    return True, (0, 1), (int(is_reversed), 0)
-                if id1 == 'U' and id2 == 'U':
+        for t in get_rotate_transforms():
+            yield t
+            yield flip_horiz(t)
+            yield flip_vert(t)
 
-                if (id1, id2) = ''
-                #
+    # Try to match up all transformations of tile2
+    for t2 in get_transformations(tile2):
+        # In all directions
+        for pos, comparison in get_sides():
+            if comparison(tile1, t2):
+                # Found match
+                debug("Matching tiles; pos: %s", pos)
+                display_tile(tile1)
+                debug("and")
+                display_tile(t2)
+                comparison(tile1, t2)
+                return pos, t2
+    return None
 
-    return False
+
+def arrange_tiles(tiles):
+    tile_grid: Dict[Pos, Tile] = {}
+    tile_id_grid: Dict[Pos, int] = {}
+    unmatched_tiles = list(tiles.keys())
+
+    # Start with the first tile, and place it at 0,0 in the tile grid
+    tile_id_grid[(0, 0)] = unmatched_tiles.pop()
+    tile_grid[(0, 0)] = tiles[tile_id_grid[(0, 0)]]
+
+    while any(unmatched_tiles):
+        # Find a unique tile that lines up with any other from the grid
+        for grid_tile_id, grid_tile in list(tile_grid.items()):
+            for tile_id in unmatched_tiles:
+                tile = tiles[tile_id]
+                if m := match(grid_tile, tile):
+                    (pos, matched_tile) = m
+                    grid_pos = (grid_tile_id[0] + pos[0],
+                                grid_tile_id[1] + pos[1])
+                    tile_grid[grid_pos] = matched_tile
+                    tile_id_grid[grid_pos] = tile_id
+                    unmatched_tiles.remove(tile_id)
+                    break
+
+    return tile_grid, tile_id_grid
+
+
+def find_grid_min_max(coordinates):
+    min_x, max_x, min_y, max_y = 0, 0, 0, 0
+    for (x, y) in coordinates:
+        min_x = min(x, min_x)
+        max_x = max(x, max_x)
+        min_y = min(y, min_y)
+        max_y = max(y, max_y)
+
+    return min_x, max_x, min_y, max_y
 
 
 def part1(input: List[str]) -> int:
     tiles = parse_tiles(input)
-    tile_grid = {}
-    unmatched_tiles = list(tiles.keys())
+    tile_grid, tile_id_grid = arrange_tiles(tiles)
+    min_x, max_x, min_y, max_y = find_grid_min_max(tile_id_grid.keys())
 
-    # Start with the first tile, and place it at 0,0 in the tile grid
-    tile_grid[(0, 0)] = unmatched_tiles.pop()
-
-    while any(unmatched_tiles):
-        # Find a unique tile that lines up with any other from the grid
-        for grid_tile_id, grid_tile in tile_grid.items():
-            for tile_id in unmatched_tiles:
-                tile = tiles[tile_id]
-                if m := match(grid_tile, tile):
-
-    return 0
-
-# def part2(input: List[str]) -> int:
+    return product(tile_id_grid[(x, y)] for x in (min_x, max_x) for y in (min_y, max_y))
