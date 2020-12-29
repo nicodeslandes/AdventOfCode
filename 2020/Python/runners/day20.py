@@ -91,10 +91,10 @@ def match(tile1: Tile, tile2: Tile) -> Optional[Tuple[Pos, Tile]]:
         for pos, comparison in get_sides():
             if comparison(tile1, t2):
                 # Found match
-                debug("Matching tiles; pos: %s", pos)
-                display_tile(tile1)
-                debug("and")
-                display_tile(t2)
+                # debug("Matching tiles; pos: %s", pos)
+                # display_tile(tile1)
+                # debug("and")
+                # display_tile(t2)
                 comparison(tile1, t2)
                 return pos, t2
     return None
@@ -143,3 +143,28 @@ def part1(input: List[str]) -> int:
     min_x, max_x, min_y, max_y = find_grid_min_max(tile_id_grid.keys())
 
     return product(tile_id_grid[(x, y)] for x in (min_x, max_x) for y in (min_y, max_y))
+
+
+def part2(input: List[str]) -> int:
+    tiles = parse_tiles(input)
+    tile_grid, tile_id_grid = arrange_tiles(tiles)
+    min_x, max_x, min_y, max_y = find_grid_min_max(tile_id_grid.keys())
+
+    tile_x = len(tile_grid[(0, 0)][0])
+    tile_y = len(tile_grid[(0, 0)])
+    picture = {}
+    for y in range(max_y, min_y - 1, -1):
+        for x in range(min_x, max_x + 1):
+            tile = tile_grid[(x, y)]
+            for cx in range(1, tile_x - 1):
+                for cy in range(1, tile_y - 1):
+                    picture[(x-min_x) * (tile_x-2) + cx - 1, (y - min_y + 1) *
+                            (tile_y-2) - cy] = tile[cy][cx]
+
+    X = (tile_x - 2) * (max_x - min_x + 1)
+    Y = (tile_y - 2) * (max_y - min_y + 1)
+    for y in range(Y-1, -1, -1):
+        row = ['██' if picture[x, y] else '▒▒' for x in range(X)]
+        debug("".join(row))
+
+    return 0
