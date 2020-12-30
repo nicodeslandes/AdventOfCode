@@ -1,36 +1,31 @@
+import logging
 from typing import List
-import itertools
+from runners.utils import isEnabled
 from logging import debug
 
 
 def get_nth(start, nth):
-    numbers_turns: List[List[int]] = [[-1, -1] for _ in range(nth)]
+    numbers_turns: List[int] = [0xFFFFFFFFFFFFFFFF] * nth
     last = start[-1]
 
     i = 0
     for _ in range(len(start)):
         n = start[i]
-        numbers_turns[n][1] = i
+        numbers_turns[n] = 0xFFFFFFFF00000000 | i
         i += 1
 
     def produce(value: int) -> int:
         turns = numbers_turns[value]
-        turns[0] = turns[1]
-        turns[1] = i
-
-        nonlocal last
-        debug("Last value: %d, producing value %d; turns: %s",
-              last, value, numbers_turns)
-        last = value
+        numbers_turns[value] = ((turns << 32) | i) & 0xFFFFFFFFFFFFFFFF
         return value
 
     while(i < nth):
         turns = numbers_turns[last]
-        first = turns[0]
-        if first == -1:
-            produce(0)
+        first = turns >> 32
+        if first == 0xFFFFFFFF:
+            last = produce(0)
         else:
-            produce(turns[1] - first)
+            last = produce((turns & 0xFFFFFFFF) - first)
         i += 1
 
     return last

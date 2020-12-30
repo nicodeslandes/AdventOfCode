@@ -1,1 +1,1 @@
-python -OO advent.py %*
+@python -OO advent.py %*
