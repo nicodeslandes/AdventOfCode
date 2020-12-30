@@ -4,44 +4,36 @@ from logging import debug
 
 
 def get_nth(start, nth):
-    numbers_turns = {}
-    for n in start:
-        numbers_turns[int(n)] = []
+    numbers_turns: List[List[int]] = [[-1, -1] for _ in range(nth)]
     last = start[-1]
 
-    def play():
-        i = 0
-        for _ in range(len(start)):
-            n = start[i]
-            numbers_turns[n] = [i]
-            yield n
-            i += 1
+    i = 0
+    for _ in range(len(start)):
+        n = start[i]
+        numbers_turns[n][1] = i
+        i += 1
 
-        def produce(value: int) -> int:
-            turns = numbers_turns.get(value)
-            if turns is None:
-                numbers_turns[value] = [i]
-            elif len(turns) == 2:
-                turns[0] = turns[1]
-                turns[1] = i
-            else:
-                numbers_turns[value] = [turns[0], i]
+    def produce(value: int) -> int:
+        turns = numbers_turns[value]
+        turns[0] = turns[1]
+        turns[1] = i
 
-            nonlocal last
-            debug("Last value: %d, producing value %d; turns: %s",
-                  last, value, numbers_turns)
-            last = value
-            return value
+        nonlocal last
+        debug("Last value: %d, producing value %d; turns: %s",
+              last, value, numbers_turns)
+        last = value
+        return value
 
-        while(True):
-            turns = numbers_turns[last]
-            if len(turns) == 1:
-                yield produce(0)
-            else:
-                [t1, t2] = turns
-                yield produce(t2-t1)
-            i += 1
-    return next(itertools.islice(play(), nth - 1, None))
+    while(i < nth):
+        turns = numbers_turns[last]
+        first = turns[0]
+        if first == -1:
+            produce(0)
+        else:
+            produce(turns[1] - first)
+        i += 1
+
+    return last
 
 
 def part1(input: List[str]) -> int:

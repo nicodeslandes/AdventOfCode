@@ -1,0 +1,1 @@
+python -OO advent.py %*
