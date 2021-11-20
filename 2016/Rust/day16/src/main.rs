@@ -3,6 +3,7 @@
 mod bits;
 mod curve;
 
+use crate::curve::SingleBitCurve;
 use bits::Bits;
 use curve::Curve;
 
@@ -19,8 +20,8 @@ fn get_checksum_string(items: &Vec<char>, size: usize) -> String {
 
 fn print_disk(items: &Vec<char>, size: usize) {
     let d = Bits { bits: 13, len: 4 };
-    println!("Data: {}, rev: {}", d, d.rev());
-    println!("Data: {}, rev: {}", d.to_string(), d.rev().to_string());
+    println!("Data: {}, rev: {}", d, d.rev_inv());
+    println!("Data: {}, rev: {}", d.to_string(), d.rev_inv().to_string());
 
     let it = items.iter().take(size);
     let values: Vec<char> = it.map(|&ch| ch).collect();
@@ -58,14 +59,20 @@ fn checksum(items: &mut Vec<char>, size: usize) -> String {
 }
 
 fn main() {
-    let target_size = 800;
-
-    let b = Bits::parse("10010");
-    println!("Bits: {}; reversed: {}", b, b.rev());
+    // let target_size = 20;
+    // let input = "10000";
+    let target_size = 35651584;
+    let input = "01110110101001000";
+    // let b = Bits::parse("010010");
+    // println!("Bits: {}; reversed/inversed: {}", b, b.rev_inv());
     //let mut bits: Vec<char> = "01110110101001000".chars().collect();
-    let mut c = Curve::new("100001");
+    let mut c = Curve::new(input);
     println!("Curve: {}", c);
 
-    c.expand(5500);
+    c.expand(target_size);
     println!("After expansion: {}", c);
+
+    let sbc = SingleBitCurve::new(100);
+    let sbc_string = sbc.fold(String::new(), |acc, d| acc + &format!("{}", d));
+    println!("SBC: {}", sbc_string);
 }
