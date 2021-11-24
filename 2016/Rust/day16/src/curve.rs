@@ -8,12 +8,13 @@ pub struct Curve {
     //base: Bits,
     multiplier: usize,
     tail: Bits,
+    len: usize,
 }
 
 impl Display for Curve {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         if self.multiplier == 0 {
-            write!(f, "{} (len: {})", self.tail, self.len())
+            write!(f, "{} (len: {})", self.tail, self.len)
         } else {
             write!(
                 f,
@@ -21,7 +22,7 @@ impl Display for Curve {
                 self.tail | Bits::single(0),
                 self.multiplier,
                 self.tail,
-                self.len()
+                self.len
             )
         }
     }
@@ -32,10 +33,10 @@ impl Curve {
         Curve {
             tail: x,
             multiplier: 0,
-            //base: Bits::single(0),
+            len: x.len, //base: Bits::single(0),
         }
     }
-    pub fn expand(&mut self, min_len: usize) {
+    pub fn expand_and_trim(&mut self, len: usize) {
         // We start off with just a tail
         if self.multiplier > 0 {
             panic!("Unexpected multiplier: {0}", self.multiplier)
@@ -50,7 +51,7 @@ impl Curve {
         // ie: 2^(k+1) = (L+1)/(x + 1)
         // <=> k = log2((L + 1)/(x + 1)) - 1
         let x = self.tail.len;
-        let log = ((min_len + 1) as f64 / ((x + 1) as f64)).log2() - 1.0;
+        let log = ((len + 1) as f64 / ((x + 1) as f64)).log2() - 1.0;
         println!("Log: {}", log);
         let k = log.ceil() as usize;
         let t = self.tail;
@@ -61,13 +62,11 @@ impl Curve {
         //self.base = a;
         self.tail = b;
         self.multiplier = (1 << k) - 1;
-    }
-
-    fn len(&self) -> usize {
-        (self.tail.len + 1) * self.multiplier + self.tail.len
+        self.len = len;
     }
 }
 
+// Idea: Have this iterator generate the mask directly instead of the individual bits
 pub struct SingleBitCurve {
     buffer: Vec<u8>,
     mirror_ptr: isize,

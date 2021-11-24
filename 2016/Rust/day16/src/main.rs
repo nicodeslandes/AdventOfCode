@@ -69,10 +69,10 @@ fn main() {
     let mut c = Curve::new(input);
     println!("Curve: {}", c);
 
-    c.expand(target_size);
+    c.expand_and_trim(target_size);
     println!("After expansion: {}", c);
 
-    let sbc = SingleBitCurve::new(100);
-    let sbc_string = sbc.fold(String::new(), |acc, d| acc + &format!("{}", d));
-    println!("SBC: {}", sbc_string);
+    //let sbc = SingleBitCurve::new(1024 * 1024);
+    // let sbc_string = sbc.fold(String::new(), |acc, d| acc + &format!("{}", d));
+    // println!("SBC: {}", sbc_string);
 }
