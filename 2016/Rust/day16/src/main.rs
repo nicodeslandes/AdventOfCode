@@ -72,6 +72,9 @@ fn main() {
     c.expand_and_trim(target_size);
     println!("After expansion: {}", c);
 
+    let result = c.compress();
+    println!("Compressed: {:?}", result);
+
     //let sbc = SingleBitCurve::new(1024 * 1024);
     // let sbc_string = sbc.fold(String::new(), |acc, d| acc + &format!("{}", d));
     // println!("SBC: {}", sbc_string);

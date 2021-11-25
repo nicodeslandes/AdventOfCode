@@ -1,6 +1,7 @@
 use crate::bits::Bits;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::option::Option;
 
 /// Curve is made of a repeated base pattern, followed by some remaining bits
 /// C = (Base)^m . tail
@@ -63,6 +64,88 @@ impl Curve {
         self.tail = b;
         self.multiplier = (1 << k) - 1;
         self.len = len;
+    }
+
+    pub fn compress(&self) -> Vec<u8> {
+        // Work out the target size
+        let mut len = self.len;
+        let mut buf_size = 1;
+        while len % 2 == 0 {
+            len >>= 1;
+            buf_size <<= 1;
+        }
+
+        println!("Allocation buffers: buffer: {}, result: {}", buf_size, len);
+        let mut result = vec![0; len];
+        let buffer = vec![0; buf_size];
+
+        let corrections = SingleBitCurve::new(buf_size);
+        for r in result.iter_mut() {}
+
+        result
+    }
+}
+
+struct CurveDataIterator<'a> {
+    curve: &'a Curve,
+    pos: usize,
+    buffer: Vec<u8>,
+}
+
+impl<'a> CurveDataIterator<'a> {
+    fn new(curve: &Curve) -> CurveDataIterator {
+        CurveDataIterator {
+            curve: curve,
+            pos: 0,
+            buffer: vec![0; 2 * 1024 * 1024 / 8],
+        }
+    }
+}
+
+impl<'a> Iterator for CurveDataIterator<'a> {
+    type Item = Vec<u8>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.curve.len {
+            return None;
+        }
+
+        // curve is (t0)^m . t
+        let pattern_len = self.curve.tail.len + 1;
+
+        let offset = self.pos % self.curve.multiplier;
+
+        // first chunk to put in the buffer is the tail part after the offset
+        //
+        // <--------- 64 bits -------->
+        // 0000000000000011111010011101
+        //              |        |    |
+        //              <---- l ------>
+        //              |-- o -->|
+        //                 chunk:|<-->|
+
+        let chunk_size = 64 - (self.curve.tail.len - offset);
+        let mut chunk = self.curve.tail.bits << 64 - chunk_size;
+
+        // That gives us the chunk all shifted to the left
+        // |111010000000000|
+        // OR with rest of tail, with 0 prepended
+        // |000000111110100|
+        // |111010111110100|
+        // This we replicate across the 2MB buffer
+        // |111010111110100111010111110100111010111110100111010111110100111010111110100111010111110100|...
+        // with correcting bits:
+        // |      1      0      1      1      0      1      0      0      0      1      1      1      |
+
+        // tail:       01110110101001000 0 11101101010010001 0 01110110101001000 0 1110110101 0010001 0 01110110101001000 0 11101101010010001 0 ...
+        //                     x         0        x^         0
+        // Correction:                   0                   0                   1           |        0                   1
+        // aligned     01110110101001000 0 11101101010010001 0 01110110101001000 1 1110110101|0010001 0 01110110101001000 0 11101101010010001
+
+        //            36|36|36|
+        // Aligned:   36-28|8-36-20|16-36-12|24
+
+        Some(vec![1, 2, 3])
     }
 }
 
