@@ -1,6 +1,7 @@
 const INPUT_LEN: usize = 17;
+pub type ResultSet = [u8; INPUT_LEN];
 
-pub fn run(input: &str, display_results: bool) {
+pub fn run(input: &str, results: &mut ResultSet, part: u8) {
     let mut input_parity: usize = 0;
     let mut parity: usize = 0;
 
@@ -17,20 +18,14 @@ pub fn run(input: &str, display_results: bool) {
         input_parity ^= parity << (INPUT_LEN + i + 1);
     }
 
-    // mnine: 0 -> INPUT_LEN-1
-    // orig: 1 => INPUT_LEN
-
-    if display_results {
-        print!("Part 1: ");
-
-        solve(input_parity, 272, display_results);
-        println!();
-        print!("Part 2: ");
-    }
-    solve(input_parity, 35651584, display_results);
+    match part {
+        1 => solve(input_parity, 272, results),
+        2 => solve(input_parity, 35651584, results),
+        _ => panic!("Invalid part"),
+    };
 }
 
-fn solve(input_parity: usize, disk_size: usize, display_results: bool) {
+fn solve(input_parity: usize, disk_size: usize, results: &mut ResultSet) {
     let increment = find_lowest_1(disk_size);
     let mut previous_parity = 0;
     for length in (increment..=disk_size).step_by(increment) {
@@ -50,9 +45,7 @@ fn solve(input_parity: usize, disk_size: usize, display_results: bool) {
         p &= 1;
         // checksum digit is the inverted parity bit,
         // XOR with the previous parity calculation
-        if display_results {
-            print!("{}", p ^ (if previous_parity == 0 { 1 } else { 0 }));
-        }
+        results[length / increment - 1] = (p ^ (if previous_parity == 0 { 1 } else { 0 })) as u8;
         previous_parity = p;
     }
 }

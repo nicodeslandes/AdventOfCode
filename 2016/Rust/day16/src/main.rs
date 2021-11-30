@@ -9,6 +9,8 @@ mod resolver;
 use crate::curve::SingleBitCurve;
 use bits::Bits;
 use curve::Curve;
+use std::thread::sleep;
+use std::time::Duration;
 use std::time::Instant;
 
 fn get_checksum_string(items: &Vec<char>, size: usize) -> String {
@@ -83,15 +85,32 @@ fn main() {
     // let sbc_string = sbc.fold(String::new(), |acc, d| acc + &format!("{}", d));
     // println!("SBC: {}", sbc_string);
 
-    resolver::run(input, true);
-    println!();
+    let mut results = [0_u8; 17];
+
+    resolver::run(input, &mut results, 1);
+    println!(
+        "Part 1: {}",
+        results
+            .iter()
+            .fold(String::new(), |acc, c| format!("{}{}", acc, c))
+    );
+    resolver::run(input, &mut results, 2);
+    println!(
+        "Part 2: {}",
+        results
+            .iter()
+            .fold(String::new(), |acc, c| format!("{}{}", acc, c))
+    );
 
     const RUN_COUNT: u32 = 1_000_000;
     println!("Starting {} runs", RUN_COUNT);
     let now = Instant::now();
     for _ in 1..RUN_COUNT {
-        resolver::run(input, false);
+        resolver::run(input, &mut results, 2);
     }
 
-    println!("Average time: {}ns", now.elapsed().as_nanos() / 1_000_000);
+    println!(
+        "Average time: {}ns",
+        now.elapsed().as_nanos() / (RUN_COUNT as u128)
+    );
 }
