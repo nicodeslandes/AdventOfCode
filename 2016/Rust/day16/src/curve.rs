@@ -125,7 +125,7 @@ impl<'a> Iterator for CurveDataIterator<'a> {
         //                 chunk:|<-->|
 
         let chunk_size = 64 - (self.curve.tail.len - offset);
-        let mut chunk = self.curve.tail.bits << 64 - chunk_size;
+        let chunk = self.curve.tail.bits << 64 - chunk_size;
 
         // That gives us the chunk all shifted to the left
         // |111010000000000|

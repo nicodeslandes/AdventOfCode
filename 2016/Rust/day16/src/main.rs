@@ -1,11 +1,15 @@
 #![feature(generators, generator_trait)]
-
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
 mod bits;
 mod curve;
+mod resolver;
 
 use crate::curve::SingleBitCurve;
 use bits::Bits;
 use curve::Curve;
+use std::time::Instant;
 
 fn get_checksum_string(items: &Vec<char>, size: usize) -> String {
     items
@@ -66,16 +70,28 @@ fn main() {
     // let b = Bits::parse("010010");
     // println!("Bits: {}; reversed/inversed: {}", b, b.rev_inv());
     //let mut bits: Vec<char> = "01110110101001000".chars().collect();
-    let mut c = Curve::new(input);
-    println!("Curve: {}", c);
+    // let mut c = Curve::new(input);
+    // println!("Curve: {}", c);
 
-    c.expand_and_trim(target_size);
-    println!("After expansion: {}", c);
+    // c.expand_and_trim(target_size);
+    // println!("After expansion: {}", c);
 
-    let result = c.compress();
-    println!("Compressed: {:?}", result);
+    // let result = c.compress();
+    // println!("Compressed: {:?}", result);
 
     //let sbc = SingleBitCurve::new(1024 * 1024);
     // let sbc_string = sbc.fold(String::new(), |acc, d| acc + &format!("{}", d));
     // println!("SBC: {}", sbc_string);
+
+    resolver::run(input, true);
+    println!();
+
+    const RUN_COUNT: u32 = 1_000_000;
+    println!("Starting {} runs", RUN_COUNT);
+    let now = Instant::now();
+    for _ in 1..RUN_COUNT {
+        resolver::run(input, false);
+    }
+
+    println!("Average time: {}ns", now.elapsed().as_nanos() / 1_000_000);
 }
