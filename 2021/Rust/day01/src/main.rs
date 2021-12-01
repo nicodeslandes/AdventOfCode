@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::Read;
+use itermore::IterMore;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 
@@ -28,11 +29,7 @@ fn count_increase_by_window(values: &[i32], window_size: usize) -> usize {
     values
         .windows(window_size)
         .map(|w| w.iter().sum())
-        .collect::<Vec<i32>>()
-        .windows(2)
-        .filter(|&w| {
-            let sums: Vec<_> = w.iter().collect();
-            sums[0] < sums[1]
-        })
+        .windows()
+        .filter(|[a,b]: &[i32;2]| { a < b })
         .count()
 }
