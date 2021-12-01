@@ -16,12 +16,23 @@ fn main() -> Result<()> {
 
     let values = input.split_whitespace().map(|line| line.parse::<i32>().unwrap()).collect::<Vec<_>>();
 
-    let mut count = 0;
-    for (i,&v) in values.iter().enumerate().skip(1) {
-        let previous = values[i-1];
-        if v > previous {count += 1;}
-    }
+    let count1 = count_increase_by_window(&values, 1);
+    let count2 = count_increase_by_window(&values, 3);
 
-    println!("Result: {}", count);
+    println!("Part 1: {}", count1);
+    println!("Part 2: {}", count2);
     Ok(())
+}
+
+fn count_increase_by_window(values: &[i32], window_size: usize) -> usize {
+    values
+        .windows(window_size)
+        .map(|w| w.iter().sum())
+        .collect::<Vec<i32>>()
+        .windows(2)
+        .filter(|&w| {
+            let sums: Vec<_> = w.iter().collect();
+            sums[0] < sums[1]
+        })
+        .count()
 }
