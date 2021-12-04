@@ -4,3 +4,6 @@
 *.pyc
 #.vscode/
 .data/
+bin/
+obj/
+*.suo
