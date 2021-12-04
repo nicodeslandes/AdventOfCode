@@ -42,9 +42,29 @@ int PunchAllGridsUntilFirstWin()
     return 0;
 }
 
+int PunchAllGridsUntilNoGridLeft()
+{
+    var gridsLeft = Enumerable.Range(0, grids.Length).ToHashSet();
+    foreach (var n in numbers)
+    {
+        foreach (var (g_i, g) in grids.Enumerate())
+        {
+            var result = g.Punch(n);
+            if (result != 0
+                && gridsLeft.Remove(g_i)
+                && gridsLeft.Count == 0)
+            {
+                return result;
+            }
+        }
+    }
+    return 0;
+}
+
 
 
 Console.WriteLine("Part 1: {0}", PunchAllGridsUntilFirstWin());
+Console.WriteLine("Part 2: {0}", PunchAllGridsUntilNoGridLeft());
 
 
 class Grid
