@@ -123,11 +123,11 @@ fn main() -> Result<()> {
         })
         .collect();
 
-    let mut grids: Vec<_> = grids_data.into_iter().map(|d| Grid::new(d)).collect();
-    debug!("Grids: {:?}", grids);
-
     let punch_all_grids = || {
-        for n in draw {
+        let mut grids: Vec<_> = grids_data.iter().map(|d| Grid::new(d.clone())).collect();
+        debug!("Grids: {:?}", grids);
+
+        for &n in &draw {
             for g in grids.iter_mut() {
                 let n = g.punch(n);
                 if n > 0 {
@@ -138,6 +138,23 @@ fn main() -> Result<()> {
         return 0;
     };
 
+    let punch_until_last_grid = || {
+        let mut grids: Vec<_> = grids_data.iter().map(|d| Grid::new(d.clone())).collect();
+        let mut remaining_grids: HashSet<_> = (0..grids.len()).collect();
+        for &n in &draw {
+            let grid_indices: Vec<_> = remaining_grids.iter().copied().collect();
+            for g_i in grid_indices {
+                let g = &mut grids[g_i];
+                let n = g.punch(n);
+                if n > 0 && remaining_grids.remove(&g_i) && remaining_grids.is_empty() {
+                    return n;
+                }
+            }
+        }
+        return 0;
+    };
+
     println!("Part 1: {}", punch_all_grids());
+    println!("Part 2: {}", punch_until_last_grid());
     Ok(())
 }
