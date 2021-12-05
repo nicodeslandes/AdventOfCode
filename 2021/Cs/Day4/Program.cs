@@ -2,16 +2,7 @@
 var numbers = (await f.ReadLineAsync())!.Split(',').Select(x => int.Parse(x)).ToList();
 Console.WriteLine("Numbers: {0}", string.Join(",", numbers));
 
-IEnumerable<string> GetLines()
-{
-    string? line;
-    while ((line = f!.ReadLine()) != null)
-    {
-        yield return line;
-    }
-}
-
-var grids = GetLines()
+var grids = Utils.ReadLines(f)
     .Buffer(6)
     .Select(b => b
         .Skip(1)

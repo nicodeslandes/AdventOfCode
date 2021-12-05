@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    },
+    "Day5": {
+      "commandName": "Project",
+      "commandLineArgs": "input.txt"
+    }
+  }
+}
