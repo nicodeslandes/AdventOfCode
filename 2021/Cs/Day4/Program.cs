@@ -1,10 +1,4 @@
-﻿if (args.Length < 1)
-{
-    Console.WriteLine("Missing file name");
-    Environment.Exit(1);
-}
-
-using var f = File.OpenText(args[0]) ?? throw new Exception($"Failed to open file {args[1]}");
+﻿using var f = Utils.OpenInputFileAsStream(args);
 var numbers = (await f.ReadLineAsync())!.Split(',').Select(x => int.Parse(x)).ToList();
 Console.WriteLine("Numbers: {0}", string.Join(",", numbers));
 
