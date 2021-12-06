@@ -26,8 +26,14 @@ fn main() -> Result<()> {
         fishes[n] += 1;
     }
 
+    println!("Part 1: {}", calculate_count(fishes.clone(), 80));
+    println!("Part 2: {}", calculate_count(fishes.clone(), 256));
+    Ok(())
+}
+
+fn calculate_count(mut fishes: Vec<u64>, iterations: usize) -> u64 {
     let mut gen_0_index = 0;
-    for _ in 0..80 {
+    for _ in 0..iterations {
         debug!(
             "Counts: {} [{}]",
             fishes.iter().sum::<u64>(),
@@ -43,7 +49,5 @@ fn main() -> Result<()> {
 
         fishes[(gen_0_index + 6) % 9] += fishes[old_gen0];
     }
-    let result: u64 = fishes.iter().sum();
-    println!("Part 1: {}", result);
-    Ok(())
+    fishes.iter().sum()
 }
