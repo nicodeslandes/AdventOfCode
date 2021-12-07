@@ -28,27 +28,16 @@ fn main() -> Result<()> {
             .iter()
             .fold(String::new(), |acc, v| format!("{} {}", acc, v))
     );
-    debug!("Sum: {}", positions.iter().sum::<usize>());
 
-    let mut suffix_sum = vec![0; positions.len()];
-    let sum: usize = positions.iter().sum();
-    let mut s = 0;
-    for (i, v) in positions.iter().enumerate() {
-        s += v;
-        suffix_sum[i] = sum - s;
-    }
-    debug!(
-        "Suffixes:{}",
-        suffix_sum
-            .iter()
-            .fold(String::new(), |acc, v| format!("{} {}", acc, v))
-    );
-
-    s = 0;
+    println!("Part 1: {}", calc_min_fuel1(&positions));
+    Ok(())
+}
+fn calc_min_fuel1(positions: &Vec<usize>) -> usize {
     let mut prev = 0;
-    let mut moves = sum;
+    let mut moves: usize = positions.iter().sum();
+
     let n = positions.len();
-    let mut min_value = sum;
+    let mut min_value = moves;
     for (i, &v) in positions.iter().enumerate() {
         // Move all predecessors up to v
         moves += i * (v - prev);
@@ -57,11 +46,9 @@ fn main() -> Result<()> {
         moves -= (n - i) * (v - prev);
 
         min_value = cmp::min(min_value, moves);
-        s += v;
         debug!("Moves: {}", moves);
         prev = v;
     }
 
-    println!("Part 1: {}", min_value);
-    Ok(())
+    min_value
 }
