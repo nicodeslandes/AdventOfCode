@@ -21,8 +21,7 @@ fn main() -> Result<()> {
     let mut line = String::new();
     file.read_to_string(&mut line)?;
 
-    let mut positions: Vec<_> = line.trim().split(',').map(|s| s.parse().unwrap()).collect();
-    positions.sort();
+    let positions: Vec<_> = line.trim().split(',').map(|s| s.parse().unwrap()).collect();
     debug!(
         "Positions:{}",
         positions
@@ -31,15 +30,16 @@ fn main() -> Result<()> {
     );
 
     let now = Instant::now();
-    println!("Part 1: {}", calc_min_fuel1(&positions));
+    println!("Part 1: {}", calc_min_fuel1(positions.clone()));
     println!("Duration: {}us", now.elapsed().as_micros());
 
     let now = Instant::now();
-    println!("Part 2: {}", calc_min_fuel2(&positions));
+    println!("Part 2: {}", calc_min_fuel2(positions.clone()));
     println!("Duration: {}us", now.elapsed().as_micros());
     Ok(())
 }
-fn calc_min_fuel1(positions: &Vec<usize>) -> usize {
+fn calc_min_fuel1(mut positions: Vec<usize>) -> usize {
+    positions.sort();
     let mut prev = 0;
     let mut moves: usize = positions.iter().sum();
 
@@ -60,7 +60,8 @@ fn calc_min_fuel1(positions: &Vec<usize>) -> usize {
     min_value
 }
 
-fn calc_min_fuel2(positions: &Vec<usize>) -> usize {
+fn calc_min_fuel2(mut positions: Vec<usize>) -> usize {
+    positions.sort();
     let mut costs: Vec<_> = positions.iter().map(|v| (*v, v * (v + 1) / 2)).collect();
     let mut prev = 0;
 
