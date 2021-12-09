@@ -5,9 +5,12 @@ use std::env;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::time::Instant;
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 type Grid<T> = Vec<Vec<T>>;
+
+const ITER_COUNT: usize = 1;
 
 fn main() -> Result<()> {
     TermLogger::init(
@@ -17,22 +20,36 @@ fn main() -> Result<()> {
         ColorChoice::Auto,
     )?;
     let file_name = env::args().nth(1).expect("Enter a file name");
+    let grid = parse_grid(&file_name)?;
 
-    debug!("Reading input from {}", file_name);
-    let file = File::open(file_name)?;
-    let lines = BufReader::new(&file).lines();
+    let mut part1: u32 = 0;
+    let mut part2: u32 = 0;
+    let now = Instant::now();
+    for _ in 0..ITER_COUNT {
+        let minimums = find_minimums(&grid);
 
-    let grid: Grid<_> = lines
-        .map(|l| {
-            l.unwrap()
-                .chars()
-                .map(|ch| ch.to_string().parse::<u32>().unwrap())
-                .collect::<Vec<_>>()
-        })
-        .collect();
+        part1 = minimums.iter().map(|v| v.1 + 1).sum();
 
-    debug!("grid:{:?}", grid);
+        part2 = minimums
+            .iter()
+            .map(|(p, _)| walk_through_basin(&grid, *p))
+            .sorted_by(|x, y| Ord::cmp(y, x))
+            .take(3)
+            .product();
+    }
 
+    println!("Part 1: {}", part1);
+    println!("Part 2: {}", part2);
+
+    println!(
+        "Average time: {}ms",
+        now.elapsed().as_millis() as f64 / ITER_COUNT as f64
+    );
+
+    Ok(())
+}
+
+fn find_minimums(grid: &Grid<u32>) -> Vec<(Pos, u32)> {
     let mut minimums: Vec<(Pos, u32)> = vec![];
     let height = grid.len();
     let width = grid[0].len();
@@ -73,17 +90,25 @@ fn main() -> Result<()> {
     }
 
     info!("Minimums: {:?}", minimums);
-    println!("Part 1: {}", minimums.iter().map(|v| v.1 + 1).sum::<u32>());
+    minimums
+}
 
-    let c: u32 = minimums
-        .iter()
-        .map(|(p, _)| walk_through_basin(&grid, *p))
-        .sorted_by(|x, y| Ord::cmp(y, x))
-        .take(3)
-        .product();
+fn parse_grid(file_name: &str) -> Result<Grid<u32>> {
+    debug!("Reading input from {}", file_name);
+    let file = File::open(file_name)?;
+    let lines = BufReader::new(&file).lines();
 
-    println!("Part 2: {}", c);
-    Ok(())
+    let grid: Grid<_> = lines
+        .map(|l| {
+            l.unwrap()
+                .chars()
+                .map(|ch| ch.to_string().parse::<u32>().unwrap())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    debug!("grid:{:?}", grid);
+    Ok(grid)
 }
 
 #[derive(Copy, Clone, Debug)]
