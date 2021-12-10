@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, info};
 use simplelog::*;
 use std::env;
 use std::fs::File;
@@ -48,8 +48,51 @@ fn main() -> Result<()> {
             0
         })
         .sum();
+
+    let mut scores: Vec<_> = lines
+        .iter()
+        .map(|l| {
+            info!("Line: {}", l);
+            let mut s: Vec<char> = vec![];
+            for ch in l.chars() {
+                match ch {
+                    '(' | '[' | '<' | '{' => s.push(ch),
+                    _ => {
+                        let opening = s.pop().unwrap();
+                        let expected = match opening {
+                            '(' => ')',
+                            '[' => ']',
+                            '{' => '}',
+                            '<' => '>',
+                            _ => panic!("What??"),
+                        };
+                        if ch != expected {
+                            return 0;
+                        }
+                    }
+                }
+            }
+            s.reverse();
+            debug!("Left chars: {:?}", s);
+            let score = s.iter().fold(0_u64, |score, ch| {
+                score * 5
+                    + match ch {
+                        '(' => 1,
+                        '[' => 2,
+                        '{' => 3,
+                        '<' => 4,
+                        _ => panic!("Huh? Unkonwn char: {}", ch),
+                    }
+            });
+            info!("Score: {}", score);
+            score
+        })
+        .filter(|&s| s != 0)
+        .collect();
+    scores.sort();
+    let part2 = scores[scores.len() / 2];
     println!("Part 1: {}", part1);
-    //println!("Part 2: {}", part2);
+    println!("Part 2: {}", part2);
 
     Ok(())
 }
