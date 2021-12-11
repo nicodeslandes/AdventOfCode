@@ -1,12 +1,25 @@
-﻿const bool ShowGrid = false;
+﻿const bool ShowGrid = true;
 var grid = ParseLines();
 var flashCount = 0;
-for (int i = 0; i < 100; i++)
+int i;
+for (i = 0; i < 100; i++)
 {
     NextStep(grid, ref flashCount);
 }
+
+
+while (!AllGridFlashed(grid))
+{
+    NextStep(grid, ref flashCount);
+    i++;
+}
 Console.WriteLine("Part 1: {0}", flashCount);
-//Console.WriteLine("Part 2: {0}", count2);
+Console.WriteLine("Part 2: {0}", i);
+
+bool AllGridFlashed(int[][] grid)
+{
+    return grid.SelectMany(row => row).All(c => c == 0);
+}
 
 int[][] ParseLines()
 {
@@ -57,10 +70,6 @@ void NextStep(int[][] grid, ref int flashCount)
         var flashes = flashingCells.ToArray();
         flashCount += flashes.Length;
         flashingCells.Clear();
-        //foreach (var pos in flashes.SelectMany(GetAdjacentCells).Distinct())
-        //{
-        //    IncrementCell(pos);
-        //}
         foreach (var pos in flashes)
         {
             foreach (var cell in GetAdjacentCells(pos))
