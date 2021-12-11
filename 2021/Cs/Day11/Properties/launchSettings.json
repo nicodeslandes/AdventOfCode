@@ -1,0 +1,21 @@
+{
+  "profiles": {
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {},
+      "distributionName": ""
+    },
+    "Run": {
+      "commandName": "Project",
+      "commandLineArgs": "input.txt"
+    },
+    "Run Test 1": {
+      "commandName": "Project",
+      "commandLineArgs": "test1.txt"
+    },
+    "Run Test 2": {
+      "commandName": "Project",
+      "commandLineArgs": "test2.txt"
+    }
+  }
+}
