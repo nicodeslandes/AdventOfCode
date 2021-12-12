@@ -87,7 +87,9 @@ void NextStep(int[][] grid, ref int flashCount)
 
 void Print(int[][] grid)
 {
+#pragma warning disable CS0162 // Unreachable code detected
     if (!ShowGrid) return;
+#pragma warning restore CS0162 // Unreachable code detected
     for (int y = 0; y < grid.Length; y++)
     {
         for (int x = 0; x < grid[0].Length; x++)
