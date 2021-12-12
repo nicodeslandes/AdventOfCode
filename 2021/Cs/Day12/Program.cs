@@ -2,11 +2,11 @@
 using static Graph;
 
 var graph = ParseLines();
-var paths = GetPathsToEnd(graph.GetNode("start"), "", ImmutableHashSet.Create<string>());
-Console.WriteLine("Part 1: {0}", paths.Count);
+var count = GetPathsToEnd(graph.GetNode("start"), ImmutableHashSet.Create<string>());
+Console.WriteLine("Part 1: {0}", count);
 
-paths = GetPathsToEnd2(graph.GetNode("start"), "", ImmutableHashSet.Create<string>(), null);
-Console.WriteLine("Part 2: {0}", paths.Count);
+count = GetPathsToEnd2(graph.GetNode("start"), ImmutableHashSet.Create<string>(), null);
+Console.WriteLine("Part 2: {0}", count);
 
 
 Graph ParseLines()
@@ -20,33 +20,30 @@ Graph ParseLines()
     return graph;
 }
 
-ImmutableHashSet<string> GetPathsToEnd(Node fromNode, string path, ImmutableHashSet<string> visitedMinorNodes)
+int GetPathsToEnd(Node fromNode, ImmutableHashSet<string> visitedMinorNodes)
 {
-    path += fromNode.Name;
-    //Console.WriteLine(path);
-    if (fromNode.Name == "end") return ImmutableHashSet.Create(path);
+    if (fromNode.Name == "end") return 1;
 
     var paths = ImmutableHashSet.Create<string>();
     if (!fromNode.IsMajor) visitedMinorNodes = visitedMinorNodes.Add(fromNode.Name);
 
+    var count = 0;
     foreach (var nextNode in fromNode.Links)
     {
         if (!nextNode.IsMajor && visitedMinorNodes.Contains(nextNode.Name)) continue;
-        paths = paths.Union(GetPathsToEnd(nextNode, path, visitedMinorNodes));
+        count += GetPathsToEnd(nextNode, visitedMinorNodes);
     }
 
-    return paths;
+    return count;
 }
 
-ImmutableHashSet<string> GetPathsToEnd2(Node fromNode, string path, ImmutableHashSet<string> visitedMinorNodes, string? twiceVisitedMinor)
+int GetPathsToEnd2(Node fromNode, ImmutableHashSet<string> visitedMinorNodes, string? twiceVisitedMinor)
 {
-    path += fromNode.Name;
-    //Console.WriteLine(path);
-    if (fromNode.Name == "end") return ImmutableHashSet.Create(path);
+    if (fromNode.Name == "end") return 1;
 
-    var paths = ImmutableHashSet.Create<string>();
     if (!fromNode.IsMajor) visitedMinorNodes = visitedMinorNodes.Add(fromNode.Name);
 
+    var count = 0;
     foreach (var nextNode in fromNode.Links)
     {
         var newTwiceVisitedMinor = twiceVisitedMinor;
@@ -56,15 +53,15 @@ ImmutableHashSet<string> GetPathsToEnd2(Node fromNode, string path, ImmutableHas
             newTwiceVisitedMinor = nextNode.Name;
 
         }
-        paths = paths.Union(GetPathsToEnd2(nextNode, path, visitedMinorNodes, newTwiceVisitedMinor));
+        count += GetPathsToEnd2(nextNode, visitedMinorNodes, newTwiceVisitedMinor);
     }
 
-    return paths;
+    return count;
 }
 
 class Graph
 {
-    private Dictionary<string, Node> _nodes = new();
+    private readonly Dictionary<string, Node> _nodes = new();
     public class Node
     {
         public string Name { get; }
