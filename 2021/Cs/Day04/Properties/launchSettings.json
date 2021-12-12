@@ -5,7 +5,7 @@
       "environmentVariables": {},
       "distributionName": ""
     },
-    "Day5": {
+    "Run": {
       "commandName": "Project",
       "commandLineArgs": "input.txt"
     }

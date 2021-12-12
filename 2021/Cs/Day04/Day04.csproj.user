@@ -4,6 +4,6 @@
     <DebuggerFlavor>ProjectDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup>
-    <ActiveDebugProfile>Day5</ActiveDebugProfile>
+    <ActiveDebugProfile>Run</ActiveDebugProfile>
   </PropertyGroup>
 </Project>

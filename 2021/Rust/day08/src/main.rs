@@ -74,7 +74,6 @@ fn find_segment_associations(signals: &Vec<Segments>) -> HashMap<Segments, u32> 
     let one = known_numbers[&1];
     let four = known_numbers[&4];
     let eight = known_numbers[&8];
-
     let mut locate_digit =
         |unknown: &mut HashSet<Segments>, value: u32, predicate: &dyn Fn(&u8) -> bool| {
             let found: Vec<_> = unknown.iter().copied().filter(predicate).take(2).collect();
