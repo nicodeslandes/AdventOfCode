@@ -1,8 +1,11 @@
-use log::{debug, info};
+use crossterm::cursor;
+use crossterm::{queue, terminal};
+use log::debug;
 use simplelog::*;
 use std::collections::HashSet;
 use std::env;
 use std::fs::File;
+use std::io::stdout;
 use std::io::BufRead;
 use std::io::BufReader;
 
@@ -11,7 +14,7 @@ type Grid = HashSet<Pos>;
 
 fn main() -> Result<()> {
     TermLogger::init(
-        LevelFilter::Debug,
+        LevelFilter::Info,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
@@ -23,10 +26,30 @@ fn main() -> Result<()> {
     debug!("Instructions: {:?}", instructions);
     apply_fold(&mut grid, instructions[0]);
     let part1 = grid.len();
+
+    for &instruction in instructions.iter().skip(1) {
+        apply_fold(&mut grid, instruction);
+    }
+
+    print_grid(&grid)?;
     let part2 = 0;
     println!("Part 1: {}", part1);
     println!("Part 2: {}", part2);
 
+    Ok(())
+}
+
+fn print_grid(grid: &Grid) -> Result<()> {
+    let mut stdout = stdout();
+    let mut max_y = 0;
+    queue!(stdout, terminal::Clear(terminal::ClearType::All))?;
+    for &pos in grid {
+        queue!(stdout, cursor::MoveTo(pos.x, pos.y))?;
+        print!("#");
+        max_y = max_y.max(pos.y);
+    }
+
+    queue!(stdout, cursor::MoveTo(0, max_y + 1))?;
     Ok(())
 }
 
@@ -63,14 +86,14 @@ fn apply_fold(grid: &mut Grid, instruction: Instruction) {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Pos {
-    x: u32,
-    y: u32,
+    x: u16,
+    y: u16,
 }
 
 #[derive(Debug, Clone, Copy)]
 enum Instruction {
-    FoldX(u32),
-    FoldY(u32),
+    FoldX(u16),
+    FoldY(u16),
 }
 
 fn parse_lines(file_name: &str) -> Result<(Grid, Vec<Instruction>)> {
@@ -89,7 +112,7 @@ fn parse_lines(file_name: &str) -> Result<(Grid, Vec<Instruction>)> {
                 if let [x, y] = line
                     .split(',')
                     .map(|s| s.parse().unwrap())
-                    .collect::<Vec<u32>>()[..]
+                    .collect::<Vec<_>>()[..]
                 {
                     positions.insert(Pos { x: x, y: y });
                 }
