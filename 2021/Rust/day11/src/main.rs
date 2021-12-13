@@ -3,11 +3,12 @@ use crossterm::{queue, terminal};
 use log::debug;
 use simplelog::*;
 use std::collections::HashSet;
-use std::env;
 use std::fs::File;
 use std::io::stdout;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::time::Duration;
+use std::{env, thread};
 
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
 type Grid = HashSet<Pos>;
@@ -46,6 +47,7 @@ fn print_grid(grid: &Grid) -> Result<()> {
     for &pos in grid {
         queue!(stdout, cursor::MoveTo(pos.x, pos.y))?;
         print!("#");
+        thread::sleep(Duration::from_millis(100));
         max_y = max_y.max(pos.y);
     }
 
