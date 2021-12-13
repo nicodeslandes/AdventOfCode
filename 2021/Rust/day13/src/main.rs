@@ -1,5 +1,5 @@
 use crossterm::cursor;
-use crossterm::{queue, terminal};
+use crossterm::{queue, style, terminal};
 use log::debug;
 use simplelog::*;
 use std::collections::HashSet;
@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::stdout;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Write;
 use std::time::Duration;
 use std::{env, thread};
 
@@ -45,9 +46,9 @@ fn print_grid(grid: &Grid) -> Result<()> {
     let mut max_y = 0;
     queue!(stdout, terminal::Clear(terminal::ClearType::All))?;
     for &pos in grid {
-        queue!(stdout, cursor::MoveTo(pos.x, pos.y))?;
-        print!("#");
-        thread::sleep(Duration::from_millis(100));
+        queue!(stdout, cursor::MoveTo(pos.x, pos.y), style::Print("#"))?;
+        stdout.flush()?;
+        thread::sleep(Duration::from_millis(30));
         max_y = max_y.max(pos.y);
     }
 
