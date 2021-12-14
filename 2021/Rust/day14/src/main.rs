@@ -1,13 +1,12 @@
-use log::debug;
+use itermore::IterMore;
+use log::{debug, info};
 use simplelog::*;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
-
 type Result<T> = ::std::result::Result<T, Box<dyn ::std::error::Error>>;
-type Grid = HashSet<Pos>;
 
 fn main() -> Result<()> {
     TermLogger::init(
@@ -17,111 +16,53 @@ fn main() -> Result<()> {
         ColorChoice::Auto,
     )?;
     let file_name = env::args().nth(1).expect("Enter a file name");
-    let (mut grid, instructions) = parse_lines(&file_name)?;
-
-    debug!("Grid: {:?}", grid);
-    debug!("Instructions: {:?}", instructions);
-    apply_fold(&mut grid, instructions[0]);
-    let part1 = grid.len();
-
-    for &instruction in instructions.iter().skip(1) {
-        apply_fold(&mut grid, instruction);
+    let (mut input, rules) = parse_lines(&file_name)?;
+    debug!("Input: {:?}", input);
+    debug!("Rules: {:?}", rules);
+    for _ in 0..10 {
+        let last = input[input.len() - 1];
+        input = input
+            .iter()
+            .windows()
+            .flat_map(|[&a, &b]| vec![a, rules[&[a, b]]])
+            .collect();
+        input.push(last);
+        info!("Input: {}", input.len());
     }
 
+    let mut counts: HashMap<char, u32> = HashMap::new();
+    for &ch in &input {
+        counts.insert(ch, *counts.get(&ch).unwrap_or(&0) + 1);
+    }
+
+    let mut min = u32::max_value();
+    let mut max = 0;
+    for &count in counts.values() {
+        min = min.min(count);
+        max = max.max(count);
+    }
     let part2 = 0;
-    println!("Part 1: {}", part1);
+    println!("Part 1: {}", max - min);
     println!("Part 2: {}", part2);
 
     Ok(())
 }
 
-fn apply_fold(grid: &mut Grid, instruction: Instruction) {
-    let positions: Vec<_> = grid.iter().copied().collect();
-    grid.clear();
-    match instruction {
-        Instruction::FoldX(fold) => {
-            for p in positions {
-                grid.insert(if p.x < fold {
-                    p
-                } else {
-                    Pos {
-                        x: fold - (p.x - fold),
-                        y: p.y,
-                    }
-                });
-            }
-        }
-        Instruction::FoldY(fold) => {
-            for p in positions {
-                grid.insert(if p.y < fold {
-                    p
-                } else {
-                    Pos {
-                        x: p.x,
-                        y: fold - (p.y - fold),
-                    }
-                });
-            }
-        }
-    }
-}
+type Rules = HashMap<[char; 2], char>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Pos {
-    x: u16,
-    y: u16,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Instruction {
-    FoldX(u16),
-    FoldY(u16),
-}
-
-fn parse_lines(file_name: &str) -> Result<(Grid, Vec<Instruction>)> {
+fn parse_lines(file_name: &str) -> Result<(Vec<char>, Rules)> {
     debug!("Reading input from {}", file_name);
     let file = File::open(file_name)?;
     let mut lines = BufReader::new(&file).lines();
-    let mut positions = Grid::new();
-    loop {
-        match lines.next() {
-            None => break,
-            Some(line) => {
-                let line = line.unwrap();
-                if line.len() == 0 {
-                    break;
-                }
-                if let [x, y] = line
-                    .split(',')
-                    .map(|s| s.parse().unwrap())
-                    .collect::<Vec<_>>()[..]
-                {
-                    positions.insert(Pos { x: x, y: y });
-                }
+    let input = lines.next().unwrap().unwrap();
+    let mut rules = Rules::new();
+    for l in lines {
+        if let [key, value] = l.unwrap().split("->").collect::<Vec<&str>>()[..] {
+            if let [a, b] = key.trim().chars().collect::<Vec<_>>()[..] {
+                rules.insert([a, b], value.trim().chars().nth(0).unwrap());
             }
         }
     }
 
-    let mut instructions = vec![];
-    loop {
-        match lines.next() {
-            None => break,
-            Some(line) => {
-                let line = line.unwrap();
-                if line.len() == 0 {
-                    break;
-                }
-                if let [text, val] = line.split('=').collect::<Vec<&str>>()[..] {
-                    let instruction = match text {
-                        "fold along x" => Instruction::FoldX(val.parse().unwrap()),
-                        "fold along y" => Instruction::FoldY(val.parse().unwrap()),
-                        _ => panic!("Unexpected: {}", text),
-                    };
-                    instructions.push(instruction);
-                }
-            }
-        }
-    }
-
-    Ok((positions, instructions))
+    Ok((input.chars().collect(), rules))
 }
