@@ -2,6 +2,7 @@
 
 var (start, end) = ParseInput();
 var result = 0;
+var count = 0;
 // Find dxs that fit the x range
 for (var dx = 1; dx <= end.X; dx++)
 {
@@ -9,11 +10,12 @@ for (var dx = 1; dx <= end.X; dx++)
     if (!xPositions.Any(x => x >= start.X && x <= end.X)) continue;
 
     // For each dx, find dys that reach the range
-    for (var dy = 1; dy <= 1000; dy++)
+    for (var dy = start.Y; dy <= 1000; dy++)
     {
         var positions = GetPositionsFromInitial2DSpeed(dx, dy).ToArray();
         if (positions.Any(p => p.X >= start.X && p.X <= end.X && p.Y >= start.Y && p.Y <= end.Y))
         {
+            count++;
             var maxY = positions.Max(p => p.Y);
             result = Math.Max(result, maxY);
         }
@@ -22,7 +24,7 @@ for (var dx = 1; dx <= end.X; dx++)
 
 
 Console.WriteLine("Part 1: {0}", result);
-//Console.WriteLine("Part 2: {0}", 0);
+Console.WriteLine("Part 2: {0}", count);
 
 IEnumerable<int> GetPositionsFromInitialSpeed(int dx)
 {
