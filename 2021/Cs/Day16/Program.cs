@@ -5,7 +5,42 @@ var input = ParseInput();
 var parser = new Parser(input);
 var packet = parser.ParsePacket(out _);
 
+Test("C200B40A82");
+Test("04005AC33890");
+Test("880086C3E88112");
+Test("CE00C43D881120");
+Test("D8005AC2A8F0");
+Test("F600BC2D8F");
+Test("9C005AC2F8F0");
+Test("9C0141080250320F1802104A08");
 Console.WriteLine("Part 1: {0}", GetVersionNumberSums(packet));
+Console.WriteLine("Part 2: {0}", Evaluate(packet));
+
+void Test(string input)
+{
+    var parser = new Parser(input);
+    var packet = parser.ParsePacket(out _);
+    Console.WriteLine($"{input}: {Evaluate(packet)}");
+}
+
+long Evaluate(Packet packet) =>
+    packet switch
+    {
+        LiteralValuePacket(_, _, var value) => value,
+        OperatorPacket(_, var id, var subPackets) =>
+            id switch
+            {
+                0 => subPackets.Sum(Evaluate),
+                1 => subPackets.Aggregate(1L, (product, p) => product * Evaluate(p)),
+                2 => subPackets.Min(Evaluate),
+                3 => subPackets.Max(Evaluate),
+                5 => Evaluate(subPackets[0]) > Evaluate(subPackets[1]) ? 1 : 0,
+                6 => Evaluate(subPackets[0]) < Evaluate(subPackets[1]) ? 1 : 0,
+                7 => Evaluate(subPackets[0]) == Evaluate(subPackets[1]) ? 1 : 0,
+                _ => throw new NotImplementedException(),
+            },
+        _ => throw new InvalidOperationException("???"),
+    };
 
 int GetVersionNumberSums(Packet packet) =>
     packet switch
@@ -21,8 +56,31 @@ string ParseInput()
 }
 
 abstract record Packet(int Version, int TypeId);
-record LiteralValuePacket(int Version, int TypeId, int Value) : Packet(Version, TypeId);
-record OperatorPacket(int Version, int TypeId, List<Packet> SubPackets) : Packet(Version, TypeId);
+record LiteralValuePacket(int Version, int TypeId, long Value) : Packet(Version, TypeId)
+{
+    public override string ToString()
+    {
+        return Value.ToString();
+    }
+}
+
+record OperatorPacket(int Version, int TypeId, List<Packet> SubPackets) : Packet(Version, TypeId)
+{
+    public override string ToString()
+    {
+        return TypeId switch
+        {
+            0 => $"({string.Join(" + ", SubPackets.Select(p => p.ToString()))})",
+            1 => $"({string.Join(" * ", SubPackets.Select(p => p.ToString()))})",
+            2 => $"Min({string.Join(", ", SubPackets.Select(p => p.ToString()))}",
+            3 => $"Max({string.Join(", ", SubPackets.Select(p => p.ToString()))}",
+            5 => $"{SubPackets[0]} > {SubPackets[1]}",
+            6 => $"{SubPackets[0]} < {SubPackets[1]}",
+            7 => $"{SubPackets[0]} = {SubPackets[1]}",
+            _ => throw new NotImplementedException(),
+        };
+    }
+}
 
 class Parser
 {
@@ -84,7 +142,7 @@ class Parser
     private Packet ParseLiteralValuePacket(int packageVersion, int packageTypeId, out int readBits)
     {
         readBits = 6;
-        var number = 0;
+        var number = 0L;
         while (true)
         {
             var numberPart = ReadNext(5);

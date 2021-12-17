@@ -20,6 +20,10 @@
     "Run Test 3": {
       "commandName": "Project",
       "commandLineArgs": "test3.txt"
+    },
+    "Run Test 4": {
+      "commandName": "Project",
+      "commandLineArgs": "test4.txt"
     }
   }
 }
