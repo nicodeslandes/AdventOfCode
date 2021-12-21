@@ -8,8 +8,12 @@ grid.Enhance(algorithm);
 grid.Enhance(algorithm);
 grid.Print();
 var part1 = grid.CountLitPixels();
+for (int i = 0; i < 48; i++) grid.Enhance(algorithm);
+var part2 = grid.CountLitPixels();
 Console.WriteLine("Part 1: {0}", part1);
+Console.WriteLine("Part 2: {0}", part2);
 
+grid.Print();
 
 (int[] algorigthm, Grid grid) ParseInput()
 {
