@@ -1,36 +1,60 @@
 ﻿var grid = ParseLines();
+var N = grid.Length;
 var min_lengths = grid.Select(row => new int[row.Length]).ToArray();
-var pos = new Pos(grid[0].Length - 1, grid.Length - 1);
-bool done = false;
-while (done)
+var cellsToCheck = new HashSet<Pos> { new Pos(0, 0) };
+while (cellsToCheck.Count > 0)
 {
-    done = true;
-    foreach (var cell in GetAdjacentCells(pos).Where(HasMinLength))
-    {
-        done = false;
-        var pathLen = GetMinPathLen(cell);
-        min_lengths[cell.Y][cell.X] = pathLen;
+    var current = cellsToCheck.First();
+    cellsToCheck.Remove(current);
 
-        // Now see if adjacent cells need re-evaluating
-        foreach (var neighbour in GetAdjacentCells(cell).Where(HasMinLength))
+    foreach (var cell in GetAdjacentCells(current))
+    {
+        var pathLen = GetMinPathLen(cell);
+        if (min_lengths[cell.Y][cell.X] == 0 || pathLen < min_lengths[cell.Y][cell.X])
         {
-            Reevaluate(neighbour, exclude: cell);
+            min_lengths[cell.Y][cell.X] = pathLen;
+            DisplayGrid();
+
+            cellsToCheck.Add(cell);
         }
     }
 }
 
-void Reevaluate(Pos neighbour, Pos exclude)
-{
-    throw new NotImplementedException();
-}
+Console.WriteLine("Part 1: {0}", min_lengths[N - 1][N-1]);
 
-Console.WriteLine("Part 1: {0}", grid.Length);
+void DisplayGrid()
+{
+    //Console.Write(".");
+    return;
+    //Thread.Sleep(1000);
+    Console.SetCursorPosition(0, 0);
+    for (int y = 0; y < N; y++)
+    {
+        for (int x = 0; x < N; x++)
+        {
+            Console.SetCursorPosition(x * 3, y * 3);
+            Console.Write(" {0} ", grid[y][x]);
+            Console.SetCursorPosition(x * 3, y * 3 + 1);
+            var min = min_lengths[y][x];
+            if (min < 10) Console.Write(" {0} ", min);
+            else Console.Write("{0,3}", min);
+        }
+        Console.WriteLine();
+    }
+}
 
 int GetMinPathLen(Pos pos)
 {
-    return GetAdjacentCells(pos)
+    var minAdjacentLength = GetAdjacentCells(pos)
         .Where(HasMinLength)
-        .Min(c => grid[c.Y][c.X] + min_lengths[c.Y][c.X]);
+        .Select(c => min_lengths[c.Y][c.X])
+        .Concat(new[] { int.MaxValue })
+        .Min();
+
+    // If no adjacent cell has any path length yet, return the cell's value
+    if (minAdjacentLength == int.MaxValue) return grid[pos.Y][pos.X];
+
+    return minAdjacentLength + grid[pos.Y][pos.X];
 }
 
 bool HasMinLength(Pos pos) => min_lengths[pos.Y][pos.X] != 0;
@@ -45,6 +69,9 @@ IEnumerable<Pos> GetAdjacentCells(Pos pos)
         for (int dy = -1; dy <= 1; dy++)
         {
             if (dx == 0 && dy == 0) continue;
+
+            // Do not allow diagonal moves
+            if (dx * dy != 0) continue;
 
             var y = pos.Y + dy;
             if (y < 0 || y >= grid[0].Length) continue;
