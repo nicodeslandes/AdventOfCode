@@ -1,11 +1,30 @@
-﻿var grid = ParseLines();
+﻿using System.Diagnostics;
+
+var grid = ParseLines();
 var N = grid.Length;
 var min_lengths = grid.Select(row => new int[row.Length]).ToArray();
-var cellsToCheck = new HashSet<Pos> { new Pos(0, 0) };
+var cellsToCheck = new PriorityQueue<Pos, int>();
+cellsToCheck.Enqueue(new(0, 0), 0);
+var cellHash = new HashSet<Pos> { new(0, 0) };
+
+int CellPriority(Pos pos) => pos.X + pos.Y; //* pos.X + pos.Y * pos.Y;
+var showGrid = false;
+
+if (showGrid) Console.Clear();
+var currentGridDisplay = new Dictionary<Pos, (int val, bool highlighted)>();
+for (int x = 0; x < N; x++)
+{
+    for (int y = 0; y < N; y++)
+    {
+        currentGridDisplay[new(x, y)] = (-1, false);
+    }
+}
+
+var sw = Stopwatch.StartNew();
 while (cellsToCheck.Count > 0)
 {
-    var current = cellsToCheck.First();
-    cellsToCheck.Remove(current);
+    var current = cellsToCheck.Dequeue();
+    if (showGrid) cellHash.Remove(current);
 
     foreach (var cell in GetAdjacentCells(current))
     {
@@ -15,31 +34,44 @@ while (cellsToCheck.Count > 0)
             min_lengths[cell.Y][cell.X] = pathLen;
             DisplayGrid();
 
-            cellsToCheck.Add(cell);
+            cellsToCheck.Enqueue(cell, CellPriority(cell));
+            if (showGrid) cellHash.Add(cell);
         }
     }
 }
 
-Console.WriteLine("Part 1: {0}", min_lengths[N - 1][N-1]);
+Console.WriteLine("Part 1: {0} ({1:N0} ms)", min_lengths[N - 1][N-1], sw.ElapsedMilliseconds);
 
 void DisplayGrid()
 {
+    if (!showGrid) return;
+
     //Console.Write(".");
-    return;
-    //Thread.Sleep(1000);
-    Console.SetCursorPosition(0, 0);
+    //return;
+    //Thread.Sleep(100);
     for (int y = 0; y < N; y++)
     {
         for (int x = 0; x < N; x++)
         {
-            Console.SetCursorPosition(x * 3, y * 3);
-            Console.Write(" {0} ", grid[y][x]);
-            Console.SetCursorPosition(x * 3, y * 3 + 1);
+            var pos = new Pos(x, y);
+            var highlight = cellHash.Contains(pos);
             var min = min_lengths[y][x];
-            if (min < 10) Console.Write(" {0} ", min);
-            else Console.Write("{0,3}", min);
+
+            var current = currentGridDisplay[pos];
+            if (current != (min, highlight))
+            {
+                Console.SetCursorPosition(2*x, y);
+                if (highlight) Console.BackgroundColor = ConsoleColor.Blue;
+                //Console.Write("{0}", grid[y][x] % 10);
+                //Console.SetCursorPosition(x, y + 1);
+                Console.Write("{0:00}", min % 100);
+                //if (min < 10) Console.Write(" {0} ", min);
+                //else Console.Write("{0,3}", min);
+                Console.BackgroundColor = ConsoleColor.Black;
+                currentGridDisplay[pos] = (min, highlight);
+                Console.WriteLine();
+            }
         }
-        Console.WriteLine();
     }
 }
 
