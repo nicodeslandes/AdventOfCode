@@ -1,6 +1,11 @@
 ﻿using System.Diagnostics;
 
 var showGrid = false;
+var sleepTime = TimeSpan.FromMilliseconds(0);
+int count = 0;
+
+//int CellPriority(Pos pos, int[][] ml) => ml[pos.Y][pos.X] * (pos.X + pos.Y); //* pos.X + pos.Y * pos.Y;
+int CellPriority(Pos pos, int[][] ml) => ml[pos.Y][pos.X];
 
 if (showGrid) Console.Clear();
 var currentGridDisplay = new Dictionary<Pos, (int val, bool highlighted)>();
@@ -51,8 +56,6 @@ int Solve(int[][] grid)
     cellsToCheck.Enqueue(new(0, 0), 0);
     var cellHash = new HashSet<Pos> { new(0, 0) };
 
-    int CellPriority(Pos pos) => pos.X + pos.Y; //* pos.X + pos.Y * pos.Y;
-
     DisplayGrid(grid);
     var sw = Stopwatch.StartNew();
     while (cellsToCheck.Count > 0)
@@ -68,13 +71,13 @@ int Solve(int[][] grid)
                 min_lengths[cell.Y][cell.X] = pathLen;
                 DisplayGrid(min_lengths, cellHash);
 
-                cellsToCheck.Enqueue(cell, CellPriority(cell));
+                cellsToCheck.Enqueue(cell, CellPriority(cell, min_lengths));
                 if (showGrid) cellHash.Add(cell);
             }
         }
     }
 
-    return min_lengths[N - 1][N - 1];  
+    return min_lengths[N - 1][N - 1];
 
     int GetMinPathLen(Pos pos)
     {
@@ -116,16 +119,20 @@ int Solve(int[][] grid)
 
 void DisplayGrid(int[][] g, ISet<Pos> highlights = null)
 {
+    if (count++ % 1000 != 0) return;
     if (!showGrid) return;
 
     var N = g.Length;
 
-    if (currentGridDisplay.Count < N * N)
+    if (currentGridDisplay.Count < Math.Min(N, Console.BufferHeight - 1) * Math.Min(N, Console.BufferWidth - 1))
     {
-        for (int x = 0; x < N; x++)
+        Console.Beep();
+        for (int y = 0; y < N; y++)
         {
-            for (int y = 0; y < N; y++)
+            if (y >= Console.BufferHeight - 1) break;
+            for (int x = 0; x < N; x++)
             {
+                if (x >= Console.BufferWidth - 1) break;
                 currentGridDisplay[new(x, y)] = (-1, false);
             }
         }
@@ -133,16 +140,21 @@ void DisplayGrid(int[][] g, ISet<Pos> highlights = null)
 
     //Console.Write(".");
     //return;
-    //Thread.Sleep(1000);
+    if (sleepTime > TimeSpan.Zero) Thread.Sleep(sleepTime);
+
+    var bufferHeight = Console.BufferHeight;
+    var bufferWidth = Console.BufferWidth;
     for (int y = 0; y < N; y++)
     {
+        if (y >= bufferHeight - 1) break;
         for (int x = 0; x < N; x++)
         {
+            if (x >= bufferWidth / 2 - 1) break;
             var pos = new Pos(x, y);
             var highlight = highlights?.Contains(pos) ?? false;
             var min = g[y][x];
 
-            var current = currentGridDisplay[pos];
+            var current = currentGridDisplay.TryGetValue(pos, out var v) ? v : (-1, false);
             if (current != (min, highlight))
             {
                 Console.SetCursorPosition(2 * x, y);
