@@ -117,7 +117,7 @@ int Solve(int[][] grid)
     }
 }
 
-void DisplayGrid(int[][] g, ISet<Pos> highlights = null)
+void DisplayGrid(int[][] g, ISet<Pos>? highlights = null)
 {
     if (count++ % 1000 != 0) return;
     if (!showGrid) return;
