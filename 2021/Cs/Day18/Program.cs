@@ -1,8 +1,7 @@
-﻿using System.Runtime.InteropServices;
-
-Config.ShowIntermediate = false;
+﻿Config.ShowIntermediate = false;
 
 Console.WriteLine("Part1: {0}", Part1());
+Console.WriteLine("Part2: {0}", Part2());
 
 int Part1()
 {
@@ -11,12 +10,27 @@ int Part1()
 
     foreach (var nb in ReadNumbers())
     {    
-        sum = sum is null ? nb : sum.Add(sum, nb);
+        sum = sum is null ? nb : sum + nb;
         if (Config.ShowIntermediate) Console.WriteLine("Sum: {0}", sum);
-        while (sum.Reduce()) ;
     }
 
-    return sum.Magnitude();
+    return sum!.Magnitude();
+}
+
+int Part2()
+{
+    var numbers = ReadNumbers().ToArray();
+    var max = int.MinValue;
+    for (int i = 0; i < numbers.Length; i++)
+    {
+        for (int j = i + 1; j < numbers.Length; j++)
+        {
+            var sum = numbers[i] + numbers[j];
+            max = Math.Max(max, sum.Magnitude());
+        }
+    }
+
+    return max;
 }
 
 IEnumerable<SnailFishNumber> ReadNumbers()
@@ -48,8 +62,6 @@ class SnailFishNumber
         { 
             switch (lexem)
             {
-                case OpenBracket:
-                    break;
                 case Number(var n):
                     stack.Push(n);
                     break;
@@ -58,23 +70,24 @@ class SnailFishNumber
                     var left = stack.Pop();
                     stack.Push(3 * left + 2 * right);
                     break;
-                default:
-                    break;
             }
         }
 
         return stack.Pop();
     }
 
-    public SnailFishNumber Add(SnailFishNumber x, SnailFishNumber y)
+    public static SnailFishNumber operator+(SnailFishNumber x, SnailFishNumber y)
     {
-        return new(new IEnumerable<Lexem>[] {
-            new Lexem[] { new OpenBracket() },
-            x._lexems,
-            new Lexem[] {new Comma() },
-            y._lexems,
-            new Lexem[] {new CloseBracket() }
+        var sum = new SnailFishNumber(new IEnumerable<Lexem>[] {
+            new Lexem[] { OpenBracket.Instance },
+            x._lexems.Select(l => l is Number(var n) ? new Number(n) : l),
+            new Lexem[] { Comma.Instance },
+            y._lexems.Select(l => l is Number(var n) ? new Number(n) : l),
+            new Lexem[] { CloseBracket.Instance }
         }.Concat());
+
+        while (sum.Reduce()) ;
+        return sum;
     }
 
     public override string ToString() => string.Join("", _lexems.Select(x =>
@@ -100,13 +113,13 @@ class SnailFishNumber
             switch (ch)
             {
                 case '[':
-                    lexems.Add(new OpenBracket());
+                    lexems.Add(OpenBracket.Instance);
                     break;
                 case ']':
-                    lexems.Add(new CloseBracket());
+                    lexems.Add(CloseBracket.Instance);
                     break;
                 case ',':
-                    lexems.Add(new Comma());
+                    lexems.Add(Comma.Instance);
                     break;
                 case var d when char.IsDigit(d):
                     currentNumber = (currentNumber ?? 0) * 10 + (d - '0');
@@ -205,11 +218,11 @@ class SnailFishNumber
                     {
                         var parent = currentNode.Previous;
                         _lexems.Remove(currentNode);
-                        _lexems.AddAfter(parent!, new CloseBracket());
+                        _lexems.AddAfter(parent!, CloseBracket.Instance);
                         _lexems.AddAfter(parent!, new Number((number.Value + 1)/ 2));
-                        _lexems.AddAfter(parent!, new Comma());
+                        _lexems.AddAfter(parent!, Comma.Instance);
                         _lexems.AddAfter(parent!, new Number(number.Value / 2));
-                        _lexems.AddAfter(parent!, new OpenBracket());
+                        _lexems.AddAfter(parent!, OpenBracket.Instance);
 
                         if (Config.ShowIntermediate) Console.WriteLine("Split  : {0}", this);
                         return true;
@@ -230,9 +243,26 @@ class SnailFishNumber
 }
 
 abstract record Lexem;
-record OpenBracket : Lexem;
-record CloseBracket : Lexem;
-record Comma : Lexem;
+record OpenBracket : Lexem
+{
+    private OpenBracket() {}
+
+    public static readonly OpenBracket Instance = new();
+}
+record CloseBracket : Lexem
+{
+    private CloseBracket() { }
+
+    public static readonly CloseBracket Instance = new();
+}
+
+record Comma : Lexem
+{
+    private Comma() { }
+
+    public static readonly Comma Instance = new();
+}
+
 record Number : Lexem
 {
     public int Value { get; set; }
