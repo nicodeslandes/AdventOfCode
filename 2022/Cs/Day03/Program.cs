@@ -1,4 +1,6 @@
-﻿Console.WriteLine("Part1: {0}", Part1());
+﻿using System.Collections.Immutable;
+
+Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
 
 // 1 - Rock
@@ -32,7 +34,13 @@ int GetPriority(char ch) =>
 
 int Part2()
 {
-    return 0;
+    return ReadInput()
+        .Buffer(3)
+        .Select(group => group
+            .Select(x => ImmutableHashSet.Create(x.ToArray()))
+            .Aggregate((ch1, ch2) => ch1.Intersect(ch2))
+            .Single())
+        .Sum(GetPriority);
 }
 
 IEnumerable<string> ReadInput()
