@@ -19,9 +19,21 @@ string Part1()
     return string.Join("", stacks.Select(s => s.TryPeek(out var c) ? c.ToString() : ""));
 }
 
-int Part2()
+string Part2()
 {
-    return 0;
+    var (stacks, moves) = ReadInput();
+    foreach (var m in moves)
+    {
+        var stack = new Stack<char>();
+        for (int i = 0; i < m.Count; i++)
+        {
+            stack.Push(stacks[m.From - 1].Pop());
+        }
+
+        while (!stack.IsEmpty()) stacks[m.To - 1].Push(stack.Pop());
+    }
+
+    return string.Join("", stacks.Select(s => s.TryPeek(out var c) ? c.ToString() : ""));
 }
 
 (Stack<char>[] stacks, List<Move> moves) ReadInput()
