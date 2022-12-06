@@ -1,7 +1,4 @@
-﻿using System.Data;
-using System.Text.RegularExpressions;
-
-Console.WriteLine("Part1: {0}", Part1());
+﻿Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
 
 
@@ -16,9 +13,15 @@ int Part1()
         .First();
 }
 
-string Part2()
+int Part2()
 {
-    return null;
+    var signal = ReadInput();
+    return signal
+        .Select((ch, index) => (ch, index))
+        .OverlappingBuffer(14)
+        .Where(buffer => buffer.Select(t => t.ch).ToHashSet().Count == 14)
+        .Select(buffer => buffer[^1].index + 1)
+        .First();
 }
 
 string ReadInput()
