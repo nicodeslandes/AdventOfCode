@@ -4,17 +4,32 @@ Console.WriteLine("Part2: {0}", Part2());
 
 int Part1()
 {
+    var directories = ParseDirectories(args);
+
+    return directories.Values.Where(d => d.Size <= 100_000).Sum(d => d.Size);
+}
+
+int Part2()
+{
+    var directories = ParseDirectories(args);
+    var occupied = directories["/"].Size;
+    var required = 30_000_000 - (70_000_000 - occupied);
+    return directories.Values.Where(d => d.Size >= required).Min(d => d.Size);
+}
+
+Dictionary<string, Directory> ParseDirectories(string[] args)
+{
     var lines = ReadInput();
     var currentPath = new Stack<string>();
 
-    var entries = new Dictionary<string, Directory>();
+    var directories = new Dictionary<string, Directory>();
 
     Directory GetOrAddDirectory(string path)
     {
-        if (!entries.TryGetValue(path, out var entry))
+        if (!directories.TryGetValue(path, out var entry))
         {
             entry = new Directory(path, new());
-            entries[path] = entry;
+            directories[path] = entry;
         }
 
         return entry;
@@ -42,7 +57,8 @@ int Part1()
                 while (i < lines.Length - 1 && lines[i + 1][0] != '$')
                 {
                     var item = lines[++i].Split(' ');
-                    Entry entry = item[0] == "dir" ? GetOrAddDirectory($"{pathname}/{item[1]}") : new File(item[1], int.Parse(item[0]));
+                    Entry entry = item[0] == "dir" ?
+                        GetOrAddDirectory($"{pathname}/{item[1]}") : new File(item[1], int.Parse(item[0]));
                     currentFolder.content.Add(entry);
                 }
             }
@@ -68,16 +84,10 @@ int Part1()
         return dir.Size;
     }
 
-    ComputeSize(entries["/"]);
-   
-    return entries.Values.Where(d => d.Size <= 100_000).Sum(d => d.Size);
+    ComputeSize(directories["/"]);
+    return directories;
 }
 
-int Part2()
-{
-    var signal = ReadInput();
-    return 0;
-}
 
 string[] ReadInput()
 {
