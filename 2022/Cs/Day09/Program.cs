@@ -13,14 +13,8 @@ int Part1()
         for (int i = 0; i < move.Steps; i++)
         {
             h = h.Move(move.Direction);
-            var d = h - t;
-            if (d.MaxDistance() > 1)
-            {
-                var dx = Math.Abs(d.X) > 0 ? d.X / Math.Abs(d.X) : 0;
-                var dy = Math.Abs(d.Y) > 0 ? d.Y / Math.Abs(d.Y) : 0;
-                t = t.Move(new(dx, dy));
-                visited.Add(t);
-            }
+            t = t.Follow(h);
+            visited.Add(t);
         }
     }
 
@@ -29,7 +23,24 @@ int Part1()
 
 int Part2()
 {
-    return 0;
+    var moves = ReadInput();
+    var knots = Enumerable.Range(0, 10).Select(_ => new Position(0, 0)).ToArray();
+
+    var visited = new HashSet<Position> { new(0, 0) };
+    foreach (var move in moves)
+    {
+        for (int i = 0; i < move.Steps; i++)
+        {
+            knots[0] = knots[0].Move(move.Direction);
+            for (int k = 1; k < knots.Length; k++)
+            {
+                knots[k] = knots[k].Follow(knots[k-1]);
+            }
+            visited.Add(knots[^1]);
+        }
+    }
+
+    return visited.Count;
 }
 
 IEnumerable<Move> ReadInput()
@@ -57,6 +68,19 @@ record struct Position(int X, int Y)
     public int MaxDistance()
     {
         return Math.Max(Math.Abs(X), Math.Abs(Y));
+    }
+
+    public Position Follow(Position h)
+    {
+        var d = h - this;
+        if (d.MaxDistance() > 1)
+        {
+            var dx = Math.Abs(d.X) > 0 ? d.X / Math.Abs(d.X) : 0;
+            var dy = Math.Abs(d.Y) > 0 ? d.Y / Math.Abs(d.Y) : 0;
+            return Move(new(dx, dy));
+        }
+
+        return this;
     }
 }
 
