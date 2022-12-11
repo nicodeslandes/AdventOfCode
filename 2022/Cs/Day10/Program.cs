@@ -39,8 +39,41 @@ int Part1()
 
 int Part2()
 {
+    var instructions = ReadInput().ToArray();
 
-    return 0;
+    var cycle = 0;
+    var result = 0;
+    var x = 1;
+
+    void NextCycle()
+    {
+        var crtPosition = cycle % 40;
+        Console.Write(crtPosition >= x - 1 && crtPosition <= x + 1 ? '#' : '.');
+
+        cycle++;
+
+        if (crtPosition == 39)
+        {
+            Console.WriteLine();
+        }
+    }
+
+    foreach (var instruction in instructions)
+    {
+        NextCycle();
+        switch (instruction)
+        {
+            case Instruction(OpCode.NoOp, _):
+                break;
+            case Instruction(OpCode.AddX, int arg):
+                NextCycle();
+                x += arg;
+                break;
+            default:
+                break;
+        }
+    }
+    return result;
 }
 
 IEnumerable<Instruction> ReadInput()
