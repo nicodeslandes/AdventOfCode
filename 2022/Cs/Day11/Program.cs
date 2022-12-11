@@ -29,9 +29,28 @@ int Part1()
     return monkeyBusiness.OrderDescending().Take(2).Multiply();
 }
 
-int Part2()
+long Part2()
 {
-    return 0;
+    var monkeys = ReadInput().ToArray();
+    var monkeyBusiness = new int[monkeys.Length];
+
+    var modulo = monkeys.Select(m => m.Denominator).Multiply();
+
+    for (var round = 0; round < 10_000; round++)
+    {
+        foreach (var monkey in monkeys)
+        {
+            while (monkey.Items.Count > 0)
+            {
+                monkeyBusiness[monkey.Id]++;
+                var itemWorryLevel = monkey.Items.Dequeue();
+                itemWorryLevel = monkey.Operation(itemWorryLevel) % modulo;
+                var destination = monkey.ThrowAction(itemWorryLevel);
+                monkeys[destination].Items.Enqueue(itemWorryLevel);
+            }
+        }
+    }
+    return monkeyBusiness.OrderDescending().Take(2).Select(i => (long)i).Multiply();
 }
 
 IEnumerable<Monkey> ReadInput()
@@ -44,21 +63,22 @@ IEnumerable<Monkey> ReadInput()
         if (line.IsEmpty()) continue;
 
         var monkeyId = int.Parse(line.Split(' ')[1][..^1]);
-        var items = NextLine().Split(": ")[1].Split(", ").Select(int.Parse);
+        var items = NextLine().Split(": ")[1].Split(", ").Select(long.Parse);
         var operation = ParseOperation(NextLine().Split(": ")[1]);
         var throwTest = NextLine().Split(": ")[1];
         var throwActionTrueDestination = int.Parse(NextLine().Split(' ')[^1]);
         var throwActionFalseDestination = int.Parse(NextLine().Split(' ')[^1]);
 
         yield return new Monkey(monkeyId, new(items), operation,
-            ParseThrowAction(throwTest, throwActionTrueDestination, throwActionFalseDestination));
+            ParseThrowAction(throwTest, throwActionTrueDestination, throwActionFalseDestination),
+            int.Parse(throwTest.Split(' ')[^1]));
 
-        Func<int, int> ParseOperation(string operation)
+        Func<long, long> ParseOperation(string operation)
         {
             var index = operation.IndexOf('=') + 2;
 
             // new = old + 8, new = old * old
-            var oldParam = Expression.Parameter(typeof(int));
+            var oldParam = Expression.Parameter(typeof(long));
 
             var operand1 = ParseOperand();
             var op = NextLexem();
@@ -68,7 +88,7 @@ IEnumerable<Monkey> ReadInput()
                 ? Expression.Add(operand1, operand2)
                 : Expression.Multiply(operand1, operand2);
 
-            return Expression.Lambda<Func<int, int>>(operationExpression, oldParam).Compile();
+            return Expression.Lambda<Func<long, long>>(operationExpression, oldParam).Compile();
 
             string? NextLexem()
             {
@@ -85,12 +105,12 @@ IEnumerable<Monkey> ReadInput()
                 return NextLexem() switch
                 {
                     "old" => oldParam,
-                    var x => Expression.Constant(int.Parse(x)),
+                    var x => Expression.Constant(long.Parse(x)),
                 };
             }
         }
 
-        Func<int, int> ParseThrowAction(string throwTest, int trueDest, int falseDest)
+        Func<long, int> ParseThrowAction(string throwTest, int trueDest, int falseDest)
         {
             // throwTest: divisible by 17
             var denominator = int.Parse(throwTest.Split(' ')[^1]);
@@ -99,4 +119,4 @@ IEnumerable<Monkey> ReadInput()
     }
 }
 
-record Monkey(int Id, Queue<int> Items, Func<int, int> Operation, Func<int, int> ThrowAction);
+record Monkey(int Id, Queue<long> Items, Func<long, long> Operation, Func<long, int> ThrowAction, int Denominator);
