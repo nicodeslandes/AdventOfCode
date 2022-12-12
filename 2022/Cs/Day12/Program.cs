@@ -1,51 +1,44 @@
 ﻿using System.Diagnostics;
 
-var showGrid = true;
+var showGrid = false;
 var sleepTime = TimeSpan.FromMilliseconds(0);
-int count = 0;
-
-//int CellPriority(Pos pos, int[][] ml) => ml[pos.Y][pos.X] * (pos.X + pos.Y); //* pos.X + pos.Y * pos.Y;
-int CellPriority(Pos pos, int[][] ml) => ml[pos.Y][pos.X];
 
 if (showGrid) Console.Clear();
 var currentGridDisplay = new Dictionary<Pos, (int val, bool highlighted)>();
 
-var (grid, start, end) = ParseLines();
 var sw = Stopwatch.StartNew();
-var part1 = Solve(grid, start, end);
-Console.WriteLine("Part 1: {0} ({1:N0} ms)", part1, sw.ElapsedMilliseconds);
+Console.WriteLine("Part 1: {0} ({1:N0} ms)", Part1(), sw.ElapsedMilliseconds);
+sw = Stopwatch.StartNew();
+Console.WriteLine("Part 2: {0} ({1:N0} ms)", Part2(), sw.ElapsedMilliseconds);
 
-//grid = ExpandGrid(grid, 5);
-//var part2 = Solve(grid);
-//Console.WriteLine("Part 2: {0} ({1:N0} ms)", part2, sw.ElapsedMilliseconds);
+//int CellPriority(Pos pos, int[][] ml) => ml[pos.Y][pos.X] * (pos.X + pos.Y); //* pos.X + pos.Y * pos.Y;
+int CellPriority(Pos pos, int[][] ml) => ml[pos.Y][pos.X];
 
-//int[][] ExpandGrid(int[][] grid, int factor)
-//{
-//    var N = grid.Length;
-//    var newGrid = Enumerable.Range(0, N * factor).Select(_ => new int[N * factor]).ToArray();
-//    for (int x = 0; x < factor; x++)
-//    {
-//        for (int y = 0; y < factor; y++)
-//        {
-//            CopyInitialGrid(x * N, y * N, x + y);
-//            DisplayGrid(newGrid);
-//        }
-//    }
+int Part1()
+{
+    var (grid, start, end) = ParseLines();
+    return Solve(grid, start, end);   
+}
 
-//    void CopyInitialGrid(int xDest, int yDest, int increase)
-//    {
-//        for (int x = 0; x < N; x++)
-//        {
-//            for (int y = 0; y < N; y++)
-//            {
-//                newGrid[yDest + y][xDest + x] = (grid[y][x] + increase - 1) % 9 + 1;
-//            }
-//        }
-//    }
+int Part2()
+{
+    var (grid, start, end) = ParseLines();
+    var result = int.MaxValue;
+    for (int y = 0; y < grid.Length; y++)
+    {
+        for (int x = 0; x < grid[0].Length; x++)
+        {
+            if (grid[y][x] == 0)
+            {
+                var length = Solve(grid, new(x, y), end);
+                if (length > 0)
+                    result = Math.Min(result, length);
+            }
+        }
+    }
 
-//    return newGrid;
-
-//}
+    return result;
+}
 
 int Solve(int[][] grid, Pos start, Pos end)
 {
@@ -56,7 +49,7 @@ int Solve(int[][] grid, Pos start, Pos end)
     min_lengths[start.Y][start.X] = 0;
     var cellsToCheck = new PriorityQueue<Pos, int>();
     cellsToCheck.Enqueue(start, 0);
-    var cellHash = new HashSet<Pos> { new(0, 0) };
+    var cellHash = new HashSet<Pos> { start };
 
     DisplayGrid(grid);
     var sw = Stopwatch.StartNew();
@@ -167,7 +160,7 @@ void DisplayGrid(int[][] g, ISet<Pos>? highlights = null)
                 if (highlight) Console.BackgroundColor = ConsoleColor.Blue;
                 //Console.Write("{0}", grid[y][x] % 10);
                 //Console.SetCursorPosition(x, y + 1);
-                Console.Write("{0:00}", min % 100);
+                Console.Write("{0:00}", (min > 0 ? min : 0) % 100);
                 //if (min < 10) Console.Write(" {0} ", min);
                 //else Console.Write("{0,3}", min);
                 Console.BackgroundColor = ConsoleColor.Black;
@@ -202,8 +195,8 @@ void DisplayGrid(int[][] g, ISet<Pos>? highlights = null)
         }
     }
 
-    grid[start.Value.Y][start.Value.X] = 0;
-    grid[end.Value.Y][end.Value.X] = 25;
+    grid[start!.Value.Y][start.Value.X] = 0;
+    grid[end!.Value.Y][end.Value.X] = 25;
     return (grid, start.Value, end.Value);
 }
 
