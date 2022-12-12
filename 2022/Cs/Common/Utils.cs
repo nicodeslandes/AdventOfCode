@@ -17,7 +17,7 @@ public class Utils
             Environment.Exit(1);
         }
 
-        return File.OpenText(args[0]) ?? throw new Exception($"Failed to open file {args[1]}");
+        return File.OpenText(args[0]) ?? throw new Exception($"Failed to open file {args[0]}");
     }
 
     public static IEnumerable<string> ReadLinesFromInputFile(string[] args)

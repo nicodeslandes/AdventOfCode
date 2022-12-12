@@ -10,7 +10,7 @@ int CellPriority(Pos pos, int[][] ml) => ml[pos.Y][pos.X];
 if (showGrid) Console.Clear();
 var currentGridDisplay = new Dictionary<Pos, (int val, bool highlighted)>();
 
-var (grid, start, end)  = ParseLines();
+var (grid, start, end) = ParseLines();
 var sw = Stopwatch.StartNew();
 var part1 = Solve(grid, start, end);
 Console.WriteLine("Part 1: {0} ({1:N0} ms)", part1, sw.ElapsedMilliseconds);
@@ -49,9 +49,11 @@ Console.WriteLine("Part 1: {0} ({1:N0} ms)", part1, sw.ElapsedMilliseconds);
 
 int Solve(int[][] grid, Pos start, Pos end)
 {
-    var N = grid.Length;
+    var Y = grid.Length;
+    var X = grid.Length;
 
-    var min_lengths = grid.Select(row => new int[row.Length]).ToArray();
+    var min_lengths = grid.Select(row => Enumerable.Range(0, row.Length).Select(_ => -1).ToArray()).ToArray();
+    min_lengths[start.Y][start.X] = 0;
     var cellsToCheck = new PriorityQueue<Pos, int>();
     cellsToCheck.Enqueue(start, 0);
     var cellHash = new HashSet<Pos> { new(0, 0) };
@@ -66,7 +68,10 @@ int Solve(int[][] grid, Pos start, Pos end)
         foreach (var cell in GetAdjacentCells(current))
         {
             var pathLen = GetMinPathLen(cell);
-            if (min_lengths[cell.Y][cell.X] == 0 || pathLen < min_lengths[cell.Y][cell.X])
+            
+            // If no min path len found, skip
+            if (pathLen == -1) continue;
+            if (min_lengths[cell.Y][cell.X] == -1 || pathLen < min_lengths[cell.Y][cell.X])
             {
                 min_lengths[cell.Y][cell.X] = pathLen;
                 DisplayGrid(min_lengths, cellHash);
@@ -77,24 +82,24 @@ int Solve(int[][] grid, Pos start, Pos end)
         }
     }
 
-    return min_lengths[N - 1][N - 1];
+    return min_lengths[end.Y][end.X];
 
     int GetMinPathLen(Pos pos)
     {
         var minAdjacentLength = GetAdjacentCells(pos)
-            .Where(cell => grid[cell.Y][cell.X] <= grid[pos.Y][pos.X])
+            .Where(cell => grid[pos.Y][pos.X] <= grid[cell.Y][cell.X] + 1)
             .Where(HasMinLength)
             .Select(c => min_lengths[c.Y][c.X])
             .Concat(new[] { int.MaxValue })
             .Min();
 
-        // If no adjacent cell has any path length yet, return the cell's value
-        if (minAdjacentLength == int.MaxValue) return grid[pos.Y][pos.X];
+        // If no adjacent cell has any path length yet, return -1: no min length
+        if (minAdjacentLength == int.MaxValue) return -1;
 
-        return minAdjacentLength + grid[pos.Y][pos.X];
+        return minAdjacentLength + 1;
     }
 
-    bool HasMinLength(Pos pos) => min_lengths[pos.Y][pos.X] != 0;
+    bool HasMinLength(Pos pos) => min_lengths[pos.Y][pos.X] != -1;
 
     IEnumerable<Pos> GetAdjacentCells(Pos pos)
     {
@@ -111,7 +116,7 @@ int Solve(int[][] grid, Pos start, Pos end)
                 if (dx * dy != 0) continue;
 
                 var y = pos.Y + dy;
-                if (y < 0 || y >= grid[0].Length) continue;
+                if (y < 0 || y >= grid.Length) continue;
                 yield return new Pos(x, y);
             }
         }
@@ -120,18 +125,18 @@ int Solve(int[][] grid, Pos start, Pos end)
 
 void DisplayGrid(int[][] g, ISet<Pos>? highlights = null)
 {
-    if (count++ % 1000 != 0) return;
+    //if (count++ % 1000 != 0) return;
     if (!showGrid) return;
 
-    var N = g.Length;
+    var Y = g.Length;
+    var X = g[0].Length;
 
-    if (currentGridDisplay.Count < Math.Min(N, Console.BufferHeight - 1) * Math.Min(N, Console.BufferWidth - 1))
+    if (currentGridDisplay.Count < Math.Min(Y, Console.BufferHeight - 1) * Math.Min(X, Console.BufferWidth - 1))
     {
-        Console.Beep();
-        for (int y = 0; y < N; y++)
+        for (int y = 0; y < Y; y++)
         {
             if (y >= Console.BufferHeight - 1) break;
-            for (int x = 0; x < N; x++)
+            for (int x = 0; x < X; x++)
             {
                 if (x >= Console.BufferWidth - 1) break;
                 currentGridDisplay[new(x, y)] = (-1, false);
@@ -145,10 +150,10 @@ void DisplayGrid(int[][] g, ISet<Pos>? highlights = null)
 
     var bufferHeight = Console.BufferHeight;
     var bufferWidth = Console.BufferWidth;
-    for (int y = 0; y < N; y++)
+    for (int y = 0; y < Y; y++)
     {
         if (y >= bufferHeight - 1) break;
-        for (int x = 0; x < N; x++)
+        for (int x = 0; x < X; x++)
         {
             if (x >= bufferWidth / 2 - 1) break;
             var pos = new Pos(x, y);
@@ -197,6 +202,8 @@ void DisplayGrid(int[][] g, ISet<Pos>? highlights = null)
         }
     }
 
+    grid[start.Value.Y][start.Value.X] = 0;
+    grid[end.Value.Y][end.Value.X] = 25;
     return (grid, start.Value, end.Value);
 }
 
