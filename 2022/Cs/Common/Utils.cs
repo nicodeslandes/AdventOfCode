@@ -1,5 +1,14 @@
-﻿public class Utils
+﻿using System.Diagnostics;
+
+public class Utils
 {
+    public static void RunAndMeasureTime<T>(string label, Func<T> func)
+    {
+        var sw = Stopwatch.StartNew();
+        var result = func();
+        Console.WriteLine("{0}: {1} ({2:N0} ms)", label, result, sw.ElapsedMilliseconds);
+    }
+
     public static StreamReader OpenInputFileAsStream(string[] args)
     {
         if (args.Length < 1)
