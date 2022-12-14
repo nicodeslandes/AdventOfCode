@@ -54,11 +54,6 @@ int Part2()
     return visited.Count;
 }
 
-void PrintRope(DisplayGrid grid, Position[] knots)
-{
-
-}
-
 IEnumerable<Move> ReadInput()
 {
     return File.ReadLines(args[0])
@@ -97,8 +92,10 @@ class DisplayGrid
 
         for (int knot = 0; knot < knots.Length; knot++)
         {
-            if (_knotPositions.Length > knot)
+            // Do we have a current position for knot?
+            if (knot < _knotPositions.Length)
             {
+                // Has it changed?
                 var currentPos = _knotPositions[knot];
                 if (currentPos != knots[knot])
                 {
@@ -121,7 +118,7 @@ class DisplayGrid
 
         void WritePixel(int x, int y, bool updateInvalidatedPositions = true)
         {
-            var pixel = _pixels.TryGetValue(new(x, y), out var p) && p != -1 ? p.ToString() : "■";
+            var pixel = _pixels.TryGetValue(new(x, y), out var p) && p != -1 ? (p % 10).ToString() : "∙";
             Console.Write(pixel);
             if (updateInvalidatedPositions)
                 invalidatedPositions!.Remove(new(x, y));
@@ -131,70 +128,67 @@ class DisplayGrid
         if (gridLimitXStart < _gridXStart || gridLimitYStart < _gridYStart)
         {
             // Yup, need to move the current area
+            var originalWidth = _gridXEnd - _gridXStart + 1;
+            var originalHeight = _gridYEnd - _gridYStart + 1;
+            var startXOffset = _gridXStart - gridLimitXStart;
+            var startYOffset = _gridYStart - gridLimitYStart;
+            Console.MoveBufferArea(0, 0, originalWidth, originalHeight, startXOffset, startYOffset);
 
-            // Special case: grid was empty:
-            if (_gridXEnd != _gridXStart)
+            // Draw the empty space
+            // First, the row above the shifted grid
+            Console.SetCursorPosition(0, 0);
+            for (int y = gridLimitYStart; y < _gridYStart; y++)
             {
-                var originalWidth = _gridXEnd - _gridXStart + 1;
-                var originalHeight = _gridYEnd - _gridYStart + 1;
-                var startXOffset = _gridXStart - gridLimitXStart;
-                var startYOffset = _gridYStart - gridLimitYStart;
-                Console.MoveBufferArea(0, 0, originalWidth, originalHeight, startXOffset, startYOffset);
+                for (int x = gridLimitXStart; x <= gridLimitXEnd; x++)
+                {
+                    WritePixel(x, y);
+                }
+                Console.WriteLine();
+            }
 
-                // Draw the empty space
-                // First, the row above the shifted grid
-                Console.SetCursorPosition(0, 0);
-                for (int y = gridLimitYStart; y < _gridYStart; y++)
+            // Then the left side
+            if (gridLimitXStart < _gridXStart)
+            {
+                for (int y = _gridYStart; y <= gridLimitYEnd; y++)
+                {
+                    Console.SetCursorPosition(0, y - gridLimitYStart);
+                    for (int x = gridLimitXStart; x < _gridXStart; x++)
+                    {
+                        WritePixel(x, y);
+                    }
+                }
+            }
+        }
+
+        // Has the grid bottom right corner moved?
+        if (gridLimitXEnd > _gridXEnd || gridLimitYEnd > _gridYEnd)
+        {
+            // Yes, draw the extra pixels
+
+            // First, the right side
+            if (gridLimitXEnd > _gridXEnd)
+            {
+                for (int y = gridLimitYStart; y <= _gridYEnd; y++)
+                {
+                    Console.SetCursorPosition(_gridXEnd - gridLimitXStart + 1, y - gridLimitYStart);
+                    for (int x = _gridXEnd + 1; x <= gridLimitXEnd; x++)
+                    {
+                        WritePixel(x, y);
+                    }
+                }
+            }
+
+            // Then the bottom
+            if (gridLimitYEnd > _gridYEnd)
+            {
+                Console.SetCursorPosition(0, _gridYEnd + 1 - gridLimitYStart);
+                for (int y = _gridYEnd + 1; y <= gridLimitYEnd; y++)
                 {
                     for (int x = gridLimitXStart; x <= gridLimitXEnd; x++)
                     {
-                        var pixel = _pixels.TryGetValue(new(x, y), out var p) ? p.ToString() : "■";
-                        Console.Write(pixel);
+                        WritePixel(x, y);
                     }
                     Console.WriteLine();
-                }
-
-                // Then the left side
-                if (gridLimitXStart < _gridXStart)
-                {
-                    for (int y = _gridYStart + 1; y <= gridLimitYEnd; y++)
-                    {
-                        Console.SetCursorPosition(0, y - gridLimitYStart);
-                        for (int x = gridLimitXStart; x < _gridXStart; x++)
-                        {
-                            var pixel = _pixels.TryGetValue(new(x, y), out var p) ? p.ToString() : "■";
-                            Console.Write(pixel);
-                        }
-                    }
-                }
-
-                // The right side
-                if (gridLimitXEnd > _gridXEnd)
-                {
-                    for (int y = _gridYStart + 1; y <= gridLimitYEnd; y++)
-                    {
-                        Console.SetCursorPosition(_gridXEnd + 1 - gridLimitXStart, y - gridLimitYStart);
-                        for (int x = _gridXEnd + 1; x < gridLimitXEnd; x++)
-                        {
-                            var pixel = _pixels.TryGetValue(new(x, y), out var p) ? p.ToString() : "■";
-                            Console.Write(pixel);
-                        }
-                    }
-                }
-
-                // The bottom row
-                if (gridLimitYEnd > _gridYEnd)
-                {
-                    Console.SetCursorPosition(0, _gridYEnd + 1 - gridLimitYStart);
-                    for (int y = _gridYEnd + 1; y <= gridLimitYStart; y++)
-                    {
-                        for (int x = gridLimitXStart; x <= gridLimitXEnd; x++)
-                        {
-                            var pixel = _pixels.TryGetValue(new(x, y), out var p) ? p.ToString() : "■";
-                            Console.Write(pixel);
-                        }
-                        Console.WriteLine();
-                    }
                 }
             }
         }
