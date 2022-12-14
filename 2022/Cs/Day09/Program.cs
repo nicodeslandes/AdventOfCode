@@ -132,7 +132,9 @@ class DisplayGrid
             var originalHeight = _gridYEnd - _gridYStart + 1;
             var startXOffset = _gridXStart - gridLimitXStart;
             var startYOffset = _gridYStart - gridLimitYStart;
+#pragma warning disable CA1416 // Validate platform compatibility
             Console.MoveBufferArea(0, 0, originalWidth, originalHeight, startXOffset, startYOffset);
+#pragma warning restore CA1416 // Validate platform compatibility
 
             // Draw the empty space
             // First, the row above the shifted grid

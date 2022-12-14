@@ -18,9 +18,6 @@ int Part1()
         });
 }
 
-int GetPriority(char ch) =>
-    char.IsLower(ch) ? ch - 'a' + 1 : ch - 'A' + 27;
-
 int Part2()
 {
     return ReadInput()
