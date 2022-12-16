@@ -6,32 +6,24 @@ RunAndMeasureTime("Part2", Part2);
 int Part1()
 {
     var nodes = ReadInput();
-
-    WriteLine("Non-0 valves: {0}", string.Join(", ",nodes.Where(v => v != null && v.FlowRate != 0).Select(v => v.Name)));
-
-    return Solve(nodes);
+    return Solve(nodes, iterCount: 30, fixCurrent2: true);
 }
 
 int Part2()
 {
-    return 0;
+    var nodes = ReadInput();
+    return Solve(nodes, iterCount: 26, fixCurrent2: false);
 }
 
-int Solve(Node[] nodes)
+int Solve(Node[] nodes, int iterCount, bool fixCurrent2)
 {
-    var closedValveCount = nodes.Count(v => v != null && v.FlowRate != 0);
-    var allOpen = (1 << closedValveCount) - 1;
-
     // For each possible state at time t, what is the released pressure at that point?
     var states = new Dictionary<StateKey, State> { [new(0, 4)] = new(2, 2, 0, 0) };
-    var allOpenResult = new Dictionary<int, int>(); // High released pressure by time
 
     var maxTotalFlowRate = nodes.Sum(v => v?.FlowRate ?? 0);
 
-    for (int time = 0; time < 26; time++)
+    for (int time = 0; time < iterCount; time++)
     {
-        Write("{0}", time % 10);
-        Out.Flush();
         var newStates = new Dictionary<StateKey, State>();
 
         void AddCandidate(StateKey key, State state, int addedFlowRate, int releasedPressure, int id1, int id2)
@@ -54,39 +46,21 @@ int Solve(Node[] nodes)
             if (current1.FlowRate != 0 && !IsValveOpen(current1, stateKey.OpenNodes))
             {
                 var openNodes = stateKey.OpenNodes | (1 << current1.OpenIndex);
-                //if (openNodes == allOpen)
-                //{
-                //    //WriteLine("All open in {0} min! Total rate: {1}, Released Pressure so far: {2}", time, state.TotalRate + current1.FlowRate, state.ReleasedPressure + state.TotalRate);
-                //    if (!allOpenResult.TryGetValue(time, out var bestReleasedPressure) || bestReleasedPressure < releasedPressure)
-                //    {
-                //        allOpenResult[time] = releasedPressure;
-                //    }
-                //}
-                //else
+                // Move Current2
+                foreach (var neighbour in current2.Neighbours)
                 {
-                    // Move Current2
-                    foreach (var neighbour in current2.Neighbours)
-                    {
-                        var s = stateKey with { OpenNodes = openNodes, Current = stateKey.Current / state.Id2 * neighbour.Id };
-                        AddCandidate(s, state, current1.FlowRate, releasedPressure, state.Id1, neighbour.Id);
-                    }
+                    var s = stateKey with { OpenNodes = openNodes, Current = stateKey.Current / state.Id2 * neighbour.Id };
+                    AddCandidate(s, state, current1.FlowRate, releasedPressure, state.Id1, neighbour.Id);
                 }
             }
 
-            // Open tap at current2
-            if (current2.FlowRate != 0 && !IsValveOpen(current2, stateKey.OpenNodes))
+            if (!fixCurrent2)
             {
-                var openNodes = stateKey.OpenNodes | (1 << current2.OpenIndex);
-                //if (openNodes == allOpen)
-                //{
-                //    //WriteLine("All open in {0} min! Total rate: {1}, Released Pressure so far: {2}", time, state.TotalRate + current1.FlowRate, state.ReleasedPressure + state.TotalRate);
-                //    if (!allOpenResult.TryGetValue(time, out var bestReleasedPressure) || bestReleasedPressure < releasedPressure)
-                //    {
-                //        allOpenResult[time] = releasedPressure;
-                //    }
-                //}
-                //else
+                // Open tap at current2
+                if (current2.FlowRate != 0 && !IsValveOpen(current2, stateKey.OpenNodes))
                 {
+                    var openNodes = stateKey.OpenNodes | (1 << current2.OpenIndex);
+
                     // Move Current1
                     foreach (var neighbour in current1.Neighbours)
                     {
@@ -94,22 +68,12 @@ int Solve(Node[] nodes)
                         AddCandidate(s, state, current2.FlowRate, releasedPressure, neighbour.Id, state.Id2);
                     }
                 }
-            }
 
-            // Open both taps
-            if (current1.Id != current2.Id && current1.FlowRate != 0 && !IsValveOpen(current1, stateKey.OpenNodes) && current2.FlowRate != 0 && !IsValveOpen(current2, stateKey.OpenNodes))
-            {
-                var openNodes = stateKey.OpenNodes | (1 << current1.OpenIndex) | (1 << current2.OpenIndex);
-                //if (openNodes == allOpen)
-                //{
-                //    //WriteLine("All open in {0} min! Total rate: {1}, Released Pressure so far: {2}", time, state.TotalRate + current1.FlowRate, state.ReleasedPressure + state.TotalRate);
-                //    if (!allOpenResult.TryGetValue(time, out var bestReleasedPressure) || bestReleasedPressure < releasedPressure)
-                //    {
-                //        allOpenResult[time] = releasedPressure;
-                //    }
-                //}
-                //else
+                // Open both taps
+                if (current1.Id != current2.Id && current1.FlowRate != 0 && !IsValveOpen(current1, stateKey.OpenNodes) && current2.FlowRate != 0 && !IsValveOpen(current2, stateKey.OpenNodes))
                 {
+                    var openNodes = stateKey.OpenNodes | (1 << current1.OpenIndex) | (1 << current2.OpenIndex);
+
                     var s = stateKey with { OpenNodes = openNodes };
                     AddCandidate(s, state, current1.FlowRate + current2.FlowRate, releasedPressure, state.Id1, state.Id2);
                 }
@@ -118,31 +82,38 @@ int Solve(Node[] nodes)
             // Option 2: Go to the next node for both
             foreach (var n1 in current1.Neighbours)
             {
-                foreach (var n2 in current2.Neighbours)
+                if (fixCurrent2)
                 {
-                    var s = stateKey with { Current = n1.Id * n2.Id };
-                    AddCandidate(s, state, 0, releasedPressure, n1.Id, n2.Id);
+                    var s = stateKey with { Current = n1.Id * state.Id2 };
+                    AddCandidate(s, state, 0, releasedPressure, n1.Id, state.Id2);
+                }
+                else
+                {
+                    foreach (var n2 in current2.Neighbours)
+                    {
+                        var s = stateKey with { Current = n1.Id * n2.Id };
+                        AddCandidate(s, state, 0, releasedPressure, n1.Id, n2.Id);
+                    }
                 }
             }
         }
 
         // Clear out all states that cannot possibly beat the best one
         // At worst, all state will be able to produce the current flow rate until the end
-        int MinExpectedPressure(State state) => state.ReleasedPressure + (25 - time) * state.TotalRate;
-        int MaxExpectedPressure(State state) => state.ReleasedPressure + (25 - time) * maxTotalFlowRate;
+        int MinExpectedPressure(State state) => state.ReleasedPressure + (iterCount - time - 1) * state.TotalRate;
+        int MaxExpectedPressure(State state) => state.ReleasedPressure + (iterCount - time - 1) * maxTotalFlowRate;
         var bestSoFar = newStates.Values.Max(MinExpectedPressure);
         var toDelete = newStates
             .Where(kvp => MaxExpectedPressure(kvp.Value) < bestSoFar)
             .Select(kvp => kvp.Key)
             .ToList();
         toDelete.ForEach(k => newStates.Remove(k));
-        states = newStates;
-     }
+        //if (toDelete.Count > 0) Console.WriteLine("Deleted {0:N0} candidates! State count: {1:N0}", toDelete.Count, newStates.Count);
 
-    WriteLine();
-    return /*allOpenResult.Count > 0
-        ? allOpenResult.Max(kvp => kvp.Value + maxTotalFlowRate * (25 - kvp.Key))
-        : */states.Values.Max(s => s.ReleasedPressure);
+        states = newStates;
+    }
+
+    return states.Values.Max(s => s.ReleasedPressure);
 
     bool IsValveOpen(Node node, int openState) => ((1 << node.OpenIndex) & openState) != 0;
 }
