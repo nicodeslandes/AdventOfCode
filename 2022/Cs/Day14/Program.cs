@@ -15,7 +15,15 @@ int Part1()
 
 int Part2()
 {
-    return 0;
+    var grid = ReadInput();
+    grid.AddFloor();
+    while (true)
+    {
+        var sand = new Pos(500, 0);
+        if (!grid.DropSand(sand)) break;
+    }
+
+    return grid.Count(c => c == Content.Sand);
 }
 
 Grid ReadInput()
@@ -69,6 +77,7 @@ class Grid
 {
     private Dictionary<Pos, Content> _cells = new();
     private int _bottom;
+    private bool _hasFloor;
 
     public void AddStone(Pos pos)
     {
@@ -89,6 +98,8 @@ class Grid
 
     public bool DropSand(Pos sand)
     {
+        // Is sand already occupied?
+        if (this[sand] == Content.Sand) { return false; }
         while (true)
         {
             var emptyPos = Attempts(sand)
@@ -98,8 +109,19 @@ class Grid
             if (emptyPos is Pos pos)
             {
                 sand = pos;
-                if (sand.Y >= _bottom)
-                    return false;
+                if (_hasFloor)
+                {
+                    if (sand.Y >= _bottom + 1)
+                    {
+                        this[sand] = Content.Sand;
+                        return true;
+                    }
+                }
+                else
+                {
+                    if (sand.Y > _bottom)
+                        return false;
+                }
             }
             else
             {
@@ -118,4 +140,9 @@ class Grid
 
     public int Count(Func<Content, bool> predicate)
         => _cells.Values.Count(predicate);
+
+    public void AddFloor()
+    {
+        _hasFloor = true;
+    }
 }
