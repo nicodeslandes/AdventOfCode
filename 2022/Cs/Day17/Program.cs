@@ -6,16 +6,16 @@ RunAndMeasureTime("Part2", Part2);
 int Part1()
 {
     var moves = ReadInput();
-
-    return Run(moves);
+    return Run(moves, 2022);
 }
 
 int Part2()
 {
-    return 0;
+    var moves = ReadInput();
+    return Run(moves, 1_000_000);
 }
 
-int Run(int[] moves)
+int Run(int[] moves, long iterations)
 {
     var pieces = LoadPieces().ToArray();
     var topPieceY = 0;
@@ -23,10 +23,10 @@ int Run(int[] moves)
 
     var topPrint = 0;
     var grid = new HashSet<Pos>();
-    for (int pieceIndex = 0; pieceIndex < 2022; pieceIndex++)
+    for (long pieceIndex = 0; pieceIndex < iterations; pieceIndex++)
     {
         // Place the piece on the grid
-        var currentPiece = pieces[pieceIndex % pieces.Length].CopyAt(new(2, topPieceY + 3));
+        var currentPiece = pieces[(int)(pieceIndex % pieces.Length)].CopyAt(new(2, topPieceY + 3));
         PrintGrid();
         while (true)
         {
