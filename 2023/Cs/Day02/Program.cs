@@ -1,4 +1,5 @@
 ﻿using Humanizer;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
@@ -25,7 +26,12 @@ int Part1()
 
 int Part2()
 {
-    return 0;
+    var input = ReadInput();
+    return input
+        .Select(g => g.Draws.Aggregate(ImmutableDictionary.Create<string, int>(), (counts, d) =>
+            d.Cubes.Values.Aggregate(counts, (colourCounts, c) => colourCounts.TryGetValue(c.Colour, out var count) && count > c.Count ? colourCounts : colourCounts.SetItem(c.Colour, c.Count))
+        ))
+        .Sum(counts => counts.Values.Multiply());
 }
 
 IEnumerable<Game> ReadInput()
