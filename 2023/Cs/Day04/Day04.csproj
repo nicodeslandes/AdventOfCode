@@ -11,6 +11,8 @@
     <PackageReference Include="Humanizer" Version="2.14.1" />
     <PackageReference Include="System.Collections.Immutable" Version="6.0.0" />
     <PackageReference Include="System.Interactive" Version="5.0.0" />
+	<Using Include="Common" />
+	<Using Include="System.Collections.Immutable"/>
   </ItemGroup>
 
   <ItemGroup>

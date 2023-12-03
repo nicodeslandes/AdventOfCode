@@ -1,4 +1,5 @@
-﻿using System.Collections.Immutable;
+﻿using Common;
+using System.Collections.Immutable;
 
 Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
@@ -20,21 +21,21 @@ int Part2()
     return gearParts.Sum(gearGroup => gearGroup.Select(g => g.Number).Multiply());
 }
 
-Dictionary<(int x, int y), char> ReadInput()
+Dictionary<Position, char> ReadInput()
 {
 
     return File.ReadLines(args[0])
         .Enumerate()
         .SelectMany(l => l.value.Enumerate().Select(ch => (x: ch.index, y: l.index, ch: ch.value)))
         .Where(x => x.ch != '.')
-        .ToDictionary(x => (x.x, x.y), x => x.ch);
+        .ToDictionary(x => new Position(x.x, x.y), x => x.ch);
 }
 
 Schematics ReadSchematics()
 {
     var input = ReadInput();
-    var maxX = input.Keys.Max(k => k.x);
-    var maxY = input.Keys.Max(k => k.y);
+    var maxX = input.Keys.Max(k => k.X);
+    var maxY = input.Keys.Max(k => k.Y);
 
     var partNumbers = new List<PartNumber>();
     for (int y = 0; y <= maxY; y++)
@@ -43,12 +44,12 @@ Schematics ReadSchematics()
         var adjacentSymbols = new HashSet<Symbol>();
         for (int x = 0; x <= maxX; x++)
         {
-            char? ch = input.TryGetValue((x, y), out var c) ? c : null;
+            char? ch = input.TryGetValue(new Position(x, y), out var c) ? c : null;
             switch (ch)
             {
                 case { } d when char.IsDigit(d):
                     nb = nb * 10 + (d - '0');
-                    adjacentSymbols.AddRange(GetAdjacentSymbols(x, y).Where(s => !char.IsDigit(s.Char)));
+                    adjacentSymbols.AddRange(GetAdjacentSymbols(new(x, y)).Where(s => !char.IsDigit(s.Char)));
                     break;
                 default:
                     AddPendingPartNumber();
@@ -68,13 +69,10 @@ Schematics ReadSchematics()
         }
     }
 
-    IEnumerable<Symbol> GetAdjacentSymbols(int x, int y)
-    {
-        for (var dx = -1; dx <= 1; dx++)
-            for (var dy = -1; dy <= 1; dy++)
-                if ((dx != 0 || dy != 0) && input.TryGetValue((x + dx, y + dy), out var s))
-                    yield return new(x + dx, y + dy, s);
-    }
+    IEnumerable<Symbol> GetAdjacentSymbols(Position pos) =>
+        pos
+            .AdjacentPositions()
+            .SelectNonNull(p => input.TryGetValue(p, out var ch) ? (Symbol?)new Symbol(p, ch) : null);
 
     return new Schematics(maxX, maxY, partNumbers.ToImmutableArray());
 }
@@ -87,4 +85,4 @@ record PartNumber(int Number, ImmutableHashSet<Symbol> AdjacentSymbols)
         => $"{Number} ({AdjacentSymbols.StringJoin()})";
 }
 
-record struct Symbol(int X, int Y, char Char);
+record struct Symbol(Position Position, char Char);

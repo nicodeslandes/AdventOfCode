@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 
+namespace Common;
+
 public class Utils
 {
     public static void RunAndMeasureTime<T>(string label, Func<T> func)
@@ -37,4 +39,35 @@ public class Utils
             yield return line;
         }
     }
+}
+
+public record Position(int X, int Y)
+{
+    public override string ToString() => $"({X},{Y})";
+
+    public IEnumerable<Position> AdjacentPositions(Adjacency adjacency = Adjacency.All)
+    {
+        if (adjacency == Adjacency.All)
+        {
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                if (adjacency == Adjacency.DiagonalCross && dy == 0) continue;
+                for (var dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+
+                    if (adjacency == Adjacency.DiagonalCross && dy == 0) continue;
+                    if (adjacency == Adjacency.StraightCross && dx != 0 && dy != 0) continue;
+                    yield return new Position(X + dx, Y + dy);
+                }
+            }
+        }
+    }
+}
+
+public enum Adjacency
+{
+    All,    // Full 9x9 grid
+    DiagonalCross,
+    StraightCross,
 }
