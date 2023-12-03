@@ -43,7 +43,7 @@ Schematics ReadSchematics()
         var adjacentSymbols = new HashSet<Symbol>();
         for (int x = 0; x <= maxX; x++)
         {
-            char? ch = input.TryGetValue((x, y), out var c) ? c : (char?)null;
+            char? ch = input.TryGetValue((x, y), out var c) ? c : null;
             switch (ch)
             {
                 case { } d when char.IsDigit(d):
