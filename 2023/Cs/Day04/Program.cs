@@ -5,20 +5,32 @@ int Part1()
 {
     var input = ReadInput();
 
-    return input.Sum(card => card.cards.Where(card.winning.Contains).Aggregate(0, (score, _) => score == 0 ? 1 : score * 2));
+    return input.Sum(card => card.matchCount == 0 ? 0 : 1 << (card.matchCount - 1));
 }
 
 int Part2()
 {
-    return 0;
+    var input = ReadInput();
+    var counts = input
+        .Aggregate(ImmutableDictionary.Create<int, int>(),
+        (counts, c) =>
+        {
+            var currentCardCount = counts.GetValueOrDefault(c.nb) + 1;
+            counts = counts.SetItem(c.nb, currentCardCount);
+            counts = counts.SetItems(Enumerable.Range(c.nb + 1, c.matchCount).Select(newCard => KeyValuePair.Create(newCard, counts.GetValueOrDefault(newCard) + currentCardCount)));
+            return counts;
+        });
+    return counts.Values.Sum();
 }
 
-IEnumerable<(HashSet<int> winning, int[] cards)> ReadInput()
+IEnumerable<(int nb, HashSet<int> winning, int matchCount)> ReadInput()
 {
     return File.ReadLines(args[0])
-        .Select(l => l.Split(": ")[1].Split(" | ").Select(n => n.Split(" ", StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)).ToArray() switch
+        .Enumerate()
+        .Select(l => (l.index, value: l.value.Split(": ")[1].Split(" | ").Select(n => n.Split(" ", StringSplitOptions.RemoveEmptyEntries).Select(int.Parse)).ToArray() switch
         {
-            [var w, var c] => (winning: w.ToHashSet(), cards: c.ToArray()),
+            [var w, var c] => (winning: w.ToHashSet(), cards: c),
             var x => throw new NotSupportedException(x.ToString()),
-        });
+        }))
+        .Select(t => (nb: t.index + 1, t.value.winning, matchCount: t.value.cards.Count(t.value.winning.Contains)));
 }
