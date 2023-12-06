@@ -1,4 +1,7 @@
-﻿Console.WriteLine("Part1: {0}", Part1());
+﻿using System.ComponentModel.Design;
+using System.Diagnostics.CodeAnalysis;
+using MapType = int;
+Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
 
 long Part1()
@@ -6,34 +9,57 @@ long Part1()
     var (seeds, maps) = ReadInput();
 
     return seeds.Min(i =>
-    {
-        var seed = i;
-        i = Map(i, maps.SeedToSoil);
-        i = Map(i, maps.SoilToFertilizer);
-        i = Map(i, maps.FertilizerToWater);
-        i = Map(i, maps.WaterToLight);
-        i = Map(i, maps.LightToTemperature);
-        i = Map(i, maps.TemperatureToHumidity);
-        i = Map(i, maps.HumidityToLocation);
+        maps.Values.Aggregate(i, (v, map) => Map(v, map)));
 
-        //Console.WriteLine($"Seed {seed} -> {i}");
-        return i;
-    });
-
-    long Map(long value, RangeMap[] rangeMaps)
+    long Map(long value, RangeMapDictionary rangeMaps)
     {
-        var mapped = rangeMaps.SelectNonNull(m => m.Map(value)).FirstOrDefault();
-        return mapped == 0 ? value : mapped;
+        return 0;
+        //var mapped = rangeMaps.SelectNonNull(m => m.Map(value)).FirstOrDefault();
+        //return mapped == 0 ? value : mapped;
     }
 }
 
 long Part2()
 {
-    var input = ReadInput();
+    var (seeds, maps) = ReadInput();
+    var maxMapType = maps.Keys.Max();
+
+    var results = maps.Keys
+        .Select(mapType => KeyValuePair.Create(mapType, new Dictionary<long, RangeMap>()))
+        .ToDictionary();
+
     return 0;
+    //RangeMap MapValue(long value, MapType mapType)
+    //{
+    //    if (results[mapType].TryGetValue(value, out var result))
+    //    {
+    //        return result;
+    //    }
+
+    //    result = Map(value, mapType, maps[mapType]);
+    //    if (mapType < maxMapType)
+    //    {
+    //        result = MapValue(result, mapType + 1);
+    //    }
+    //    results[mapType][value] = result;
+    //    return result;
+    //}
+
+    //return seeds.Buffer(2).SelectMany(b => LongEnumerable.Range(b[0], b[1])).Min(i =>
+    //    MapValue(i, 0));
+
+    //long Map(long value, int type, RangeMapDictionary rangeMaps)
+    //{
+    //    if (rangeMaps.TryGetContainingRangeMap(value, out var rangeMap))
+    //    {
+    //        return rangeMap;
+    //    }
+    //    var mapped = .SelectNonNull(m => m.Map(value)).FirstOrDefault();
+    //    return mapped == 0 ? value : mapped;
+    //}
 }
 
-(long[] seeds, Maps maps) ReadInput()
+(long[] seeds, Dictionary<MapType, RangeMapDictionary> maps) ReadInput()
 {
     using var fileStream = File.OpenText(args[0]) ?? throw new Exception("File open");
     var seeds = fileStream.ReadLine()?.Split(": ") switch
@@ -44,20 +70,18 @@ long Part2()
 
     fileStream.ReadLine();
 
-    var maps = new Maps(
-        ReadRangeMaps(),
-        ReadRangeMaps(),
-        ReadRangeMaps(),
-        ReadRangeMaps(),
-        ReadRangeMaps(),
-        ReadRangeMaps(),
-        ReadRangeMaps()
-        );
+    var maps = Enumerable.Range(0, 7)
+        .Select(i => KeyValuePair.Create(i, ReadRangeMaps()))
+        .ToDictionary();
 
     return (seeds, maps);
 
-    RangeMap[] ReadRangeMaps() =>
-        ReadRangeMapsRaw().OrderBy(m => m.sourceStart).ToArray();
+    RangeMapDictionary ReadRangeMaps()
+    {
+        var tree = new RangeMapDictionary();
+        tree.AddRange(ReadRangeMapsRaw());
+        return tree;
+    }
 
     IEnumerable<RangeMap> ReadRangeMapsRaw()
     {
@@ -72,7 +96,26 @@ long Part2()
             };
         }
     }
+}
 
+class RangeMapDictionary
+{
+    BinaryTree<RangeMap> _ranges = new(Comparer<RangeMap>.Create((a, b) => long.Sign(b.sourceStart - a.sourceStart)));
+
+    public void AddRange(IEnumerable<RangeMap> ranges)
+    {
+        _ranges.AddRange(ranges);
+    }
+
+    public bool TryGetContainingRangeMap(long value, [MaybeNullWhen(false)] out RangeMap map)
+    {
+        return _ranges.TryGetMatch(m => m switch
+        {
+            var (start, _, count) when value < start => BinaryTree.VisitorDirection.Left,
+            var (start, _, count) when value <= start + count => BinaryTree.VisitorDirection.Found,
+            _ => BinaryTree.VisitorDirection.Right,
+        }, out map);
+    }
 }
 
 record RangeMap(long sourceStart, long destinationStart, long length)
@@ -81,12 +124,3 @@ record RangeMap(long sourceStart, long destinationStart, long length)
         src >= sourceStart && src < sourceStart + length ? destinationStart + src - sourceStart :
         null;
 }
-
-record Maps(
-    RangeMap[] SeedToSoil,
-    RangeMap[] SoilToFertilizer,
-    RangeMap[] FertilizerToWater,
-    RangeMap[] WaterToLight,
-    RangeMap[] LightToTemperature,
-    RangeMap[] TemperatureToHumidity,
-    RangeMap[] HumidityToLocation);
