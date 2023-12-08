@@ -39,6 +39,48 @@ public class Utils
             yield return line;
         }
     }
+
+    public static long Lcm(params long[] arr) => Lcm(arr);
+
+    public static long Lcm(IEnumerable<long> enumerable)
+    {
+        // a = p1.p2
+        // b = p1
+        // c = p3
+
+        // lcm = p1.p2.p3
+        // lcm(a,b) = p1.p2
+        // lcm(a,b,c) = lcm(p1.p2, p3) = p1.p2.p3
+
+        // lcm = q.r.s = a.b.c / p3
+        return enumerable.Aggregate(Lcm);
+    }
+
+    public static long Lcm(long a, long b) => a / Gcd(a, b) * b;
+
+    public static long Gcd(params long[] arr) => Gcd((IEnumerable<long>)arr);
+    
+    public static long Gcd(IEnumerable<long> enumerable)
+    {
+        return enumerable.Aggregate(Gcd);
+    }
+
+    public static long Gcd(long x, long y)
+    {
+        // x ∧ y = x ∧ (y % x)
+        if (x > y)
+            (x, y) = (y, x);
+
+        while (x != 0)
+        {
+            y %= x;
+
+            if (x > y)
+                (x, y) = (y, x);
+        }
+
+        return y;
+    }
 }
 
 public record Position(int X, int Y)
