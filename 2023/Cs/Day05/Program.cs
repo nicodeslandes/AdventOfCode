@@ -87,7 +87,7 @@ long Part2()
     {
         fileStream.ReadLine();
         string line;
-        while (!string.IsNullOrEmpty(line = fileStream.ReadLine()))
+        while (!string.IsNullOrEmpty(line = fileStream.ReadLine()!))
         {
             yield return line.Split(" ").Select(long.Parse).ToArray() switch
             {
