@@ -38,7 +38,7 @@ long Part1()
 
 long Part2()
 {
-    var input = ReadInput();
+    var (y, rocks) = ReadInput();
     return 0;
 }
 
