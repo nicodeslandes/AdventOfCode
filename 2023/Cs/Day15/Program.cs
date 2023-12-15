@@ -21,10 +21,18 @@ long Part2()
 
 int CalculateHash(string instruction)
 {
-    return 0;
+    var hash = 0;
+    foreach (var ch in instruction)
+    {
+        hash += ch;
+        hash *= 17;
+        hash %= 256;
+    }
+
+    return hash;
 }
 
 IEnumerable<string> ReadInput()
 {
-    return Utils.ReadLinesFromInputFile(args);
+    return Utils.ReadLinesFromInputFile(args).First().Split(",");
 }
