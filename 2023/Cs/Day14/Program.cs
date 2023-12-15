@@ -7,8 +7,10 @@ Console.WriteLine("Part2: {0}", Part2());
 long Part1()
 {
     var grid = new Grid();
-    grid.ReadInput();
+    grid.ReadInput(args);
 
+    IEnumerable<Rock> rocks = null!;
+    int Y = 3;
     var total = rocks
         .GroupBy(r => r.Pos.X)
         .OrderBy(g => g.Key)
@@ -51,7 +53,7 @@ class Grid
     public int Rows => _grid.GetLength(0);
     public int Cols => _grid.GetLength(1);
 
-    public void ReadInput()
+    public void ReadInput(string[] args)
     {
         int y = 0;
         int x = 0;
@@ -106,7 +108,7 @@ class Grid
 
         for(;position.X < Cols && position.Y < Rows; position.X += move2.dx, position.Y += move2.dy)
         {
-            var topAvailableIndex = 0;
+            //var topAvailableIndex = 0;
             var original = (position.X, position.Y);
 
             for (; position.X < Cols && position.Y < Rows; position.X += move1.dx, position.Y += move1.dy)
@@ -114,11 +116,11 @@ class Grid
                 if (_grid[position.X, position.Y] is { Type: RockType.Round } rock)
                 {
                     _grid[position.X, position.Y] = null;
-                    _grid[topAvailableIndex++, col] = rock;
+                    //_grid[topAvailableIndex++, col] = rock;
                 }
                 else if (_grid[position.X, position.Y] is { Type: RockType.Square } square)
                 {
-                    topAvailableIndex = row + 1;
+                    //topAvailableIndex = row + 1;
                 }
             }
 
