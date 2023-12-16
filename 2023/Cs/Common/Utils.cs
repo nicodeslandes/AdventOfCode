@@ -108,6 +108,8 @@ public record Position
     public int X { get; set; }
     public int Y { get; set; }
 
+    public static Position operator +(Position pos, (int dx, int dy) move) => new(pos.X + move.dx, pos.Y + move.dy);
+
     public override string ToString() => $"({X},{Y})";
 
     public IEnumerable<Position> AdjacentPositions(Adjacency adjacency = Adjacency.All)
