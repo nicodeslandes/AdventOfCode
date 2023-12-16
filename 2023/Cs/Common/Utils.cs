@@ -1,8 +1,9 @@
 ﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Common;
 
-public class Utils
+public static class Utils
 {
     public static void RunAndMeasureTime<T>(string label, Func<T> func)
     {
@@ -80,6 +81,20 @@ public class Utils
         }
 
         return y;
+    }
+
+    public static LinkedListNode<T>? FindFirst<T>(this LinkedList<T> list, Func<T, bool> predicate)
+    {
+        var node = list.First;
+        while (node != null)
+        {
+            if (predicate(node.Value))
+                break;
+            
+            node = node.Next;
+        }
+
+        return node;
     }
 }
 
