@@ -1,6 +1,4 @@
-﻿using System;
-using MapType = int;
-using RangeMapDictionary = System.Collections.Generic.Dictionary<System.Data.MappingType, RangeMap>;
+﻿using MapType = int;
 Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
 
@@ -29,61 +27,9 @@ long Part2()
         .Select(mapType => KeyValuePair.Create(mapType, new Dictionary<long, RangeMap>()))
         .ToDictionary();
     var rangeSet = maps.Values
-            .Aggregate(seeds, (ranges, maps) => ApplyMaps(ranges, maps));
+            .Aggregate(seeds, ApplyMaps);
 
     return rangeSet.Min();
-
-    RangeSet Map(RangeMap[] maps, RangeSet rangeSet)
-    {
-        Console.WriteLine("From: {0}; maps: [{1}]", rangeSet, maps.StringJoin());
-        var mapped = maps.Select(m => rangeSet.Map(m.Map)).ToArray();
-        Console.WriteLine("Mapped: {0}", mapped.StringJoin());
-        var result = mapped
-            .Aggregate((r1, r2) => r1.Merge(r2));
-        Console.WriteLine("To  : {0}", result);
-        return result;
-        //var mapped = rangeMaps.SelectNonNull(m => m.Map(value)).FirstOrDefault();
-        //return mapped == 0 ? value : mapped;
-    }
-
-    //RangeMap MapValue(long value, MapType mapType)
-    //{
-    //    if (results[mapType].TryGetValue(value, out var result))
-    //    {
-    //        return result;
-    //    }
-
-    //    result = Map(value, mapType, maps[mapType]);
-    //    if (mapType < maxMapType)
-    //    {
-    //        result = MapValue(result, mapType + 1);
-    //    }
-    //    results[mapType][value] = result;
-    //    return result;
-    //}
-
-    //return seeds.Buffer(2).SelectMany(b => LongEnumerable.Range(b[0], b[1])).Min(i =>
-    //    MapValue(i, 0));
-
-    //long Map(long value, int type, RangeMapDictionary rangeMaps)
-    //{
-    //    if (rangeMaps.TryGetContainingRangeMap(value, out var rangeMap))
-    //    {
-    //        return rangeMap;
-    //    }
-    //    var mapped = .SelectNonNull(m => m.Map(value)).FirstOrDefault();
-    //    return mapped == 0 ? value : mapped;
-    //}
-}
-
-RangeSet MapRange(RangeSet set, RangeMap map)
-{
-    // ----a---------b-----   range
-    // -s------l-----------   map from [s,s+l] to [d, d+l]
-    Console.WriteLine("From: {0}; map: {1}", set, map);
-    var result = set.Map(r => map.Map(r));
-    Console.WriteLine("To  : {0}", result); ;
-    return result;
 }
 
 (RangeSet seeds, Dictionary<MapType, RangeMap[]> maps) ReadInput()
@@ -92,7 +38,7 @@ RangeSet MapRange(RangeSet set, RangeMap map)
     var seeds = fileStream.ReadLine()?.Split(": ") switch
     {
         ["seeds", var seedValues] => new RangeSet(
-            seedValues.Split(" ").Select(long.Parse).Buffer(2).Select(pair => new Range(pair[0], pair[1]))),
+            seedValues.Split(" ").Select(long.Parse).Buffer(2).Select(pair => new Range(pair[0], pair[0] + pair[1]))),
         var x => throw new Exception($"Invalid line: {x}"),
     };
 
@@ -106,7 +52,7 @@ RangeSet MapRange(RangeSet set, RangeMap map)
 
     RangeMap[] ReadRangeMaps()
     {
-        return ReadRangeMapsRaw().ToArray();
+        return ReadRangeMapsRaw().OrderBy(m => m.from.Start).ToArray();
     }
 
     IEnumerable<RangeMap> ReadRangeMapsRaw()
@@ -117,7 +63,7 @@ RangeSet MapRange(RangeSet set, RangeMap map)
         {
             yield return line.Split(" ").Select(long.Parse).ToArray() switch
             {
-                [var ss, var ds, var l] => new RangeMap(ds, ss, l),
+                [var ds, var ss, var l] => new RangeMap(new Range(ss, ss + l), ds - ss),
                 var x => throw new Exception(x.ToString()),
             };
         }
@@ -126,21 +72,54 @@ RangeSet MapRange(RangeSet set, RangeMap map)
 
 RangeSet ApplyMaps(RangeSet rangeSet, RangeMap[] maps)
 {
-    return rangeSet.Map(range => MapRange(range));
+    Console.WriteLine("From: {0}; maps: {1}", rangeSet, maps.StringJoin());
+    var result = rangeSet.Map(range => MapRange(range));
+    Console.WriteLine("To:   {0}", result);
+    return result;
+
 
     IEnumerable<Range> MapRange(Range range)
     {
-        var rangeStart = range.Start;
-        var rangeEnd = range.Start + range.Length;
+        // Range: -------------s------------------e----------------
+        // Maps : -m1--e1--m2-----e2--m3--e3--m4----e4---m5---e5---
 
-        // Look for the first mapping that start after the range start
-        var (index, value) = maps.Enumerate().FirstOrDefault(x => x.value.sourceStart >= rangeStart);
-        
-        ...
+        var rangeEnd = range.End;
+        var sourcePosition = range.Start;
+
+        foreach(var mapRange in maps)
+        {
+            // Skip mapRanges that end before s
+            if (mapRange.from.End <= sourcePosition) continue;
+
+            // If the map range start after e, we're done
+            if (mapRange.from.Start >= rangeEnd) break;
+
+            //Console.WriteLine("Range {0}; processing mapping {1}", range, mapRange);
+            // Bring the map start/end within the current range
+            var mapStart = Math.Max(mapRange.from.Start, sourcePosition);
+            var mapEnd = Math.Min(mapRange.from.End, rangeEnd);
+
+            //Console.WriteLine("Adjusted mapping range: [{0}, {1})", mapStart, mapEnd);
+
+            // from sourcePos to mapStart, no mapping: we issue the range unshifted
+            if (sourcePosition < mapStart) yield return new Range(sourcePosition, mapStart);
+
+            // from mapStart to mapEnd, we shift by the mapping offset
+            if (mapEnd > mapStart) yield return new Range(mapStart + mapRange.offset, mapEnd + mapRange.offset);
+
+            // we stop here; the next mapping might map the rest of the range
+            sourcePosition = mapEnd;
+
+            // Any range left to map?
+            if (sourcePosition >= rangeEnd) break;
+        }
+
+        // Issue any leftover range with an unshifted range
+        if (sourcePosition < rangeEnd) yield return new Range(sourcePosition, rangeEnd);
     }
 }
 
-record Range(long Start, long Length)
+record Range(long Start, long End)
 {
     public Range MergeWith(Range range)
     {
@@ -148,12 +127,12 @@ record Range(long Start, long Length)
         if (range.Start < Start) return range.MergeWith(this);
 
         // Ensure the ranges overlap
-        if (Start + Length < range.Start) throw new Exception($"Cannot merge: {Start + Length} < {range.Start}");
+        if (End < range.Start) throw new Exception($"Cannot merge: {End} < {range.Start}");
 
-        return new(Start, Math.Max(Length, range.Start + range.Length - Start));
+        return new(Start, Math.Max(End, range.End));
     }
 
-    public override string ToString() => $"{Start}:{Length}";
+    public override string ToString() => $"[{Start}-{End})";
 }
 
 
@@ -192,8 +171,7 @@ class RangeSet
             }
 
             var lastRange = n.Value;
-            var lastRangeLastIndex = lastRange.Start + lastRange.Length - 1;
-            if (lastRangeLastIndex < range.Start - 1)
+            if (lastRange.End < range.Start)
             {
                 // nope, the new range is after
                 _rangesList.AddLast(range);
@@ -209,11 +187,11 @@ class RangeSet
         {
             // The node start is after range
             // Can range be merged with the next node?
-            var canMergeWithNext = range.Start + range.Length >= n.Value.Start;
+            var canMergeWithNext = range.End >= n.Value.Start;
 
             // Can it be merged with the previous ?
             var previous = n.Previous?.Value;
-            var canMergeWithPrevious = previous != null && previous.Start + previous.Length >= range.Start;
+            var canMergeWithPrevious = previous != null && previous.End >= range.Start;
 
             if (canMergeWithNext && canMergeWithPrevious)
             {
@@ -240,7 +218,7 @@ class RangeSet
         return result;
     }
 
-    public override string ToString() => $"[{string.Join(",", _rangesList)}]";
+    public override string ToString() => $"[{_rangesList.StringJoin()}]";
 
     internal RangeSet Merge(RangeSet other)
     {
@@ -251,14 +229,14 @@ class RangeSet
     }
 }
 
-record RangeMap(long sourceStart, long destinationStart, long length)
+record RangeMap(Range from, long offset)
 {
-    public override string ToString() => $"{sourceStart}->{destinationStart} ({length})";
+    public override string ToString() => $"{from} ({offset:+0;-#})";
 
     public IEnumerable<Range> Map(Range range)
     {
-        if (range.Start + range.Length <= sourceStart) return [range];
-        if (range.Start >= sourceStart + length) return [range];
+        if (range.End <= from.Start) return [range];
+        if (range.Start >= from.End) return [range];
 
         // ------s------------e------   range
         // --ms------me-------------    map 1
@@ -266,18 +244,18 @@ record RangeMap(long sourceStart, long destinationStart, long length)
         // -------------ms------me--    map 3
         // ----------------------ms--
 
-        var ms = Math.Max(sourceStart, range.Start);
-        var me = Math.Min(sourceStart + length, range.Start + range.Length);
+        var ms = Math.Max(from.Start, range.Start);
+        var me = Math.Min(from.End, range.End);
         IEnumerable<Range> GetMap()
         {
             // Yield part before the mapped region: unchanged
-            if (range.Start < ms) yield return new Range(range.Start, ms - range.Start);
+            if (range.Start < ms) yield return new Range(range.Start, ms);
 
             // Yield the mapped part (from ms to me)
-            yield return new Range(destinationStart + ms - sourceStart, me - ms);
+            yield return new Range(ms + offset, me + offset);
 
             // Yield the part after the mapped region, unchanged
-            if (range.Start + range.Length > me) yield return new Range(me, range.Start + range.Length - me);
+            if (range.End > me) yield return new Range(me, range.End);
         }
 
         return GetMap();
