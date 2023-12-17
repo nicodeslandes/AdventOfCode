@@ -6,10 +6,36 @@ Console.WriteLine("Part2: {0}", Part2());
 long Part1()
 {
     var grid = ReadInput();
+    return FindEnergisedCellCount(grid, new(new(0, 0), Direction.Right));
+}
+
+long Part2()
+{
+    var grid = ReadInput();
+    IEnumerable<Beam> StartBeams()
+    {
+        for (int x = 0; x < grid!.GetLength(0); x++)
+        {
+            yield return new Beam(new(x, 0), Direction.Down);
+            yield return new Beam(new(x, grid.GetLength(1) - 1), Direction.Up);
+        }
+
+        for (int y = 0; y < grid.GetLength(1); y++)
+        {
+            yield return new Beam(new(0, y), Direction.Right);
+            yield return new Beam(new(grid.GetLength(0) - 1, y), Direction.Left);
+        }
+    }
+
+    return StartBeams().Max(b => FindEnergisedCellCount(grid, b));
+}
+
+int FindEnergisedCellCount(Cell[,] grid, Beam startBeam)
+{
     var gridX = grid.GetLength(0);
     var gridY = grid.GetLength(1);
 
-    var beams = new HashSet<Beam> { new (new(0, 0), Direction.Right) };
+    var beams = new HashSet<Beam> { startBeam };
     var activeBeams = new HashSet<Beam> { beams.First() };
 
     while (activeBeams.Count > 0)
@@ -19,7 +45,7 @@ long Part1()
         {
             foreach (var newBeam in MoveBeam(beam))
             {
-                if (beams.Add(newBeam) && newBeam.Dir != Direction.Stopped)
+                if (beams.Add(newBeam))
                 {
                     newActiveBeams.Add(newBeam);
                 }
@@ -29,7 +55,7 @@ long Part1()
         activeBeams = newActiveBeams;
     }
 
-    return beams.Count;
+    return beams.Select(b => b.Pos).Distinct().Count();
 
     IEnumerable<Beam> MoveBeam(Beam beam)
     {
@@ -38,45 +64,44 @@ long Part1()
 
     IEnumerable<(Position pos, Direction dir)> NextCellPositions(Position pos, Direction direction)
     {
-        var move = ToMovement(direction);
-        var nextPosition = pos + move;
-        if (!IsValidPosition(nextPosition)) yield break;
+        //var move = ToMovement(direction);
+        //var nextPosition = pos + move;
+        //if (!IsValidPosition(nextPosition)) yield break;
 
         //TODO: don't move beam if next cell is -/\|
-        var nextCell = grid![nextPosition.X, nextPosition.Y];
-        switch ((nextCell.Type, direction))
+        var cell = grid![pos.X, pos.Y];
+        switch ((cell.Type, direction))
         {
             case ('.', _)
-                or  ('-', Direction.Left or Direction.Right)
+                or ('-', Direction.Left or Direction.Right)
                 or ('|', Direction.Up or Direction.Down):
-                yield return (nextPosition, direction);
+                var nextPos = pos + ToMovement(direction);
+                if (IsValidPosition(nextPos))
+                    yield return (nextPos, direction);
                 break;
             case ('/' or '\\', var dir):
-                yield return (nextPosition, Direction.Stopped);
-                var newDir = ChangeDirection(dir, nextCell.Type);
-                nextPosition = GetNextPosition(pos, newDir);
-                if (!IsValidPosition(nextPosition)) yield break;
-                yield return (nextPosition, newDir);
+                var newDir = ChangeDirection(dir, cell.Type);
+                pos = GetNextPosition(pos, newDir);
+                if (!IsValidPosition(pos)) yield break;
+                yield return (pos, newDir);
                 break;
             case ('|', _):
-                yield return (nextPosition, Direction.Stopped);
-                foreach (var x in NextPositions(nextPosition, [Direction.Up, Direction.Down]))
+                foreach (var x in NextPositions(pos, [Direction.Up, Direction.Down]))
                     yield return x;
                 break;
             case ('-', _):
-                yield return (nextPosition, Direction.Stopped);
-                foreach (var x in NextPositions(nextPosition, [Direction.Left, Direction.Right]))
+                foreach (var x in NextPositions(pos, [Direction.Left, Direction.Right]))
                     yield return x;
                 break;
 
-            case var x: throw new InvalidOperationException(x.ToString());            
+            case var x: throw new InvalidOperationException(x.ToString());
         }
 
         IEnumerable<(Position pos, Direction dir)> NextPositions(Position pos, IEnumerable<Direction> directions)
         {
             foreach (var dir in directions)
             {
-                var next = GetNextPosition(nextPosition, dir);
+                var next = GetNextPosition(pos, dir);
                 if (IsValidPosition(next)) yield return (next, dir);
             }
         }
@@ -88,7 +113,7 @@ long Part1()
     bool IsValidPosition(Position pos)
         => pos.X >= 0 && pos.X < gridX && pos.Y >= 0 && pos.Y < gridY;
 
-        (int dx, int dy) ToMovement(Direction direction) => direction switch
+    (int dx, int dy) ToMovement(Direction direction) => direction switch
     {
         Direction.Left => (-1, 0),
         Direction.Right => (1, 0),
@@ -97,14 +122,6 @@ long Part1()
         _ => throw new NotImplementedException(),
     };
 }
-
-long Part2()
-{
-    var input = ReadInput();
-
-    return 0;
-}
-
 Cell[,] ReadInput()
 {
     int y = 0;
@@ -141,16 +158,16 @@ static Direction ChangeDirection(Direction dir, char cell)
         '/' => dir switch
         {
             Direction.Up => Direction.Right,
-            Direction.Left => Direction.Up,
-            Direction.Right => Direction.Down,
+            Direction.Left => Direction.Down,
+            Direction.Right => Direction.Up,
             Direction.Down => Direction.Left,
             _ => throw new NotImplementedException(),
         },
         '\\' => dir switch
         {
             Direction.Up => Direction.Left,
-            Direction.Left => Direction.Down,
-            Direction.Right => Direction.Up,
+            Direction.Left => Direction.Up,
+            Direction.Right => Direction.Down,
             Direction.Down => Direction.Right,
             _ => throw new NotImplementedException(),
         },
@@ -170,5 +187,4 @@ enum Direction
     Right,
     Up,
     Down,
-    Stopped
 }
