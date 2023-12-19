@@ -5,7 +5,18 @@ Console.WriteLine("Part2: {0}", Part2());
 
 long Part1()
 {
-    var moves = ReadInput().ToArray();
+    var moves = ReadInput(1).ToArray();
+    return FillLagoon(moves);
+}
+
+long Part2()
+{
+    var moves = ReadInput(2).ToArray();
+    return FillLagoon(moves);
+}
+
+int FillLagoon(Move[] moves)
+{
     var position = new Position(0, 0);
     var positions = new HashSet<Position> { position };
     foreach (var move in moves)
@@ -34,20 +45,13 @@ long Part1()
 
     IEnumerable<Position> FindAdjacentPositions(Position p)
     {
-        foreach(var d in new[] { Direction.Up, Direction.Down, Direction.Right, Direction.Left })
+        foreach (var d in new[] { Direction.Up, Direction.Down, Direction.Right, Direction.Left })
         {
             yield return p + ToMovement(d);
         }
     }
 
     return positions.Count;
-}
-
-long Part2()
-{
-    var grid = ReadInput();
-   
-    return 0;
 }
 
 (int dx, int dy) ToMovement(Direction direction) => direction switch
@@ -59,13 +63,13 @@ long Part2()
     _ => throw new NotImplementedException(),
 };
 
-IEnumerable<Move> ReadInput()
+IEnumerable<Move> ReadInput(int part)
 {
     foreach (var line in Utils.ReadLinesFromInputFile(args))
     {
-        switch (line.Split(" "))
+        switch ((part, line.Split(" ")))
         {
-            case [var d, var l, ..]:
+            case (1, [var d, var l, ..]):
                 var length = int.Parse(l);
                 var direction = d switch
                 {
@@ -77,6 +81,11 @@ IEnumerable<Move> ReadInput()
                 };
                 yield return new(direction, length);
                 break;
+            case (2, [.., var hex]):
+                length = int.Parse(hex[2 .. ^1], System.Globalization.NumberStyles.HexNumber);
+                direction = (Direction)int.Parse(hex[^2..^1]);
+                yield return new(direction, length);
+                break;
         }
     }
 }
@@ -85,8 +94,8 @@ record Move(Direction Dir, int Length);
 
 enum Direction
 {
-    Left,
     Right,
-    Up,
     Down,
+    Left,
+    Up,
 }
