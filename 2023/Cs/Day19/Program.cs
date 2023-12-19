@@ -1,101 +1,96 @@
-﻿using System;
+﻿using System.Runtime.InteropServices;
 
 Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
 
 long Part1()
 {
-    var moves = ReadInput(1).ToArray();
-    return FillLagoon(moves);
+    var (workflows, parts) = ReadInput();
+
+    return parts.Where(p => ExecuteWorkflow(p, "in", workflows) == "A").Sum(p => p.Attributes.Values.Sum());
 }
 
 long Part2()
 {
-    var moves = ReadInput(2).ToArray();
-    return FillLagoon(moves);
+    var (workflows, parts) = ReadInput();
+    return 0;
 }
 
-int FillLagoon(Move[] moves)
+string ExecuteWorkflow(Part part, string current, IDictionary<string, Workflow> workflows)
 {
-    var position = new Position(0, 0);
-    var positions = new HashSet<Position> { position };
-    foreach (var move in moves)
+    while (current is not ("A" or "R"))
     {
-        for (var i = 0; i < move.Length; i++)
+        foreach (var rule in workflows[current].Rules)
         {
-            position += ToMovement(move.Dir);
-            positions.Add(position);
-        }
-    }
-
-    position = new Position(1, 1);
-    var newPositions = new HashSet<Position> { position };
-    while (newPositions.Count > 0)
-    {
-        var discoveredPositions = new HashSet<Position>();
-        foreach (var p in newPositions)
-        {
-            foreach (var n in FindAdjacentPositions(p))
+            if (IsRuleMatch(part, rule))
             {
-                if (positions.Add(n)) discoveredPositions.Add(n);
+                current = rule.Destination;
+                break;
             }
         }
-        newPositions = discoveredPositions;
     }
 
-    IEnumerable<Position> FindAdjacentPositions(Position p)
+    return current;
+}
+
+bool IsRuleMatch(Part part, Rule rule)
+{
+    if (rule.Condition is not { } condition)
     {
-        foreach (var d in new[] { Direction.Up, Direction.Down, Direction.Right, Direction.Left })
+        return true;
+    }
+
+    var partValue = part.Attributes[condition.Attribute];
+    switch (condition.Operator)
+    {
+        case '>': return partValue > condition.Value;
+        case '<': return partValue < condition.Value;
+        default: throw new Exception($"Unhandled operator: {condition.Operator}");
+    }
+}
+
+(ImmutableDictionary<string, Workflow> workflows, ImmutableArray<Part> pieces) ReadInput()
+{
+    var lines = Utils.ReadLinesFromInputFile(args);
+    var iterator = lines.GetEnumerator();
+    IEnumerable<Workflow> ReadWorkflows()
+    {
+        while (iterator!.MoveNext())
         {
-            yield return p + ToMovement(d);
+            var line = iterator.Current;
+            if (line == "") break;
+            if (line.Split("{") is [var name, var ruleString])
+            {
+                var rules = ruleString[..^1].Split(",")
+                    .Select(r => r.Split(":") switch
+                    {
+                    [var conditionStr, var destination] => new Rule(new Condition(conditionStr[0], conditionStr[1], int.Parse(conditionStr[2..])), destination),
+                    [var destination] => new Rule(null, destination),
+                        _ => throw new Exception($"Invalid split for rule {r}"),
+                    })
+                    .ToImmutableArray();
+
+                yield return new Workflow(name, rules);
+            }
         }
     }
 
-    return positions.Count;
-}
-
-(int dx, int dy) ToMovement(Direction direction) => direction switch
-{
-    Direction.Left => (-1, 0),
-    Direction.Right => (1, 0),
-    Direction.Up => (0, -1),
-    Direction.Down => (0, 1),
-    _ => throw new NotImplementedException(),
-};
-
-IEnumerable<Move> ReadInput(int part)
-{
-    foreach (var line in Utils.ReadLinesFromInputFile(args))
+    IEnumerable<Part> ReadParts()
     {
-        switch ((part, line.Split(" ")))
+        while (iterator!.MoveNext())
         {
-            case (1, [var d, var l, ..]):
-                var length = int.Parse(l);
-                var direction = d switch
-                {
-                    "R" => Direction.Right,
-                    "D" => Direction.Down,
-                    "L" => Direction.Left,
-                    "U" => Direction.Up,
-                    _ => throw new NotImplementedException(),
-                };
-                yield return new(direction, length);
-                break;
-            case (2, [.., var hex]):
-                length = int.Parse(hex[2 .. ^1], System.Globalization.NumberStyles.HexNumber);
-                direction = (Direction)int.Parse(hex[^2..^1]);
-                yield return new(direction, length);
-                break;
+            var line = iterator.Current;
+            var attributes = line[1..^1].Split(",").Select(attributeString =>
+                (attribute: attributeString[0], value: int.Parse(attributeString[2..])));
+            yield return new Part(attributes.ToImmutableDictionary(a => a.attribute, a => a.value));
         }
     }
+
+    return (ReadWorkflows().ToImmutableDictionary(w => w.Name), ReadParts().ToImmutableArray());
 }
 
-record Move(Direction Dir, int Length);
+record Workflow(string Name, ImmutableArray<Rule> Rules);
+record Part(ImmutableDictionary<char, int> Attributes);
 
-enum Direction
-{
-    Right,
-    Down,
-    Left,
-    Up,
-}
+record Rule(Condition? Condition, string Destination);
+record Condition(char Attribute, char Operator, int Value);
