@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using AttributeRanges = System.Collections.Immutable.ImmutableDictionary<string, System.Range>;
 
 Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
@@ -12,9 +13,44 @@ long Part1()
 
 long Part2()
 {
+    //               in
+    //            /       \
+    //           px             qqz
+    //        /  | \       /      |    \
+    //       qkq A  rfg   qs     hdj    R
+    //     A  crn   gd RA A lnx A  pv
+    //         AR   RR       A     AR
+
+    // Step 1 : Turn all node for which all rules go to the same place into that place
+
     var (workflows, parts) = ReadInput();
+
+    //var node = "in";
+    //while (true)
+    //{
+    //    nodes = ProcessNode(node, );
+    //}
+
     return 0;
 }
+
+//ImmutableDictionary<string, ProcessedNode> ProcessNode(string node, ConditionSet nodeConditionSet, ImmutableDictionary<string, Workflow> workflows, List<Condition[]> acceptedConditionSets)
+//{
+//    var current = workflows[node];
+//    foreach (var rule in current.Rules)
+//    {
+//        var nextNode = rule.Destination;
+//        if (nextNode == "R") continue;
+//        if (nextNode == "A") acceptedConditionSets.Add(Merge(nodeConditionSet, rule.Condition));
+//    }
+
+//}
+
+//Condition[] Merge(ImmutableDictionary<(string attribute, char op), Condition> nodeConditionSet, Condition? condition)
+//{
+//    // TODO: Fix:
+//    return nodeConditionSet.Values.Concat([condition]).ToArray();
+//}
 
 string ExecuteWorkflow(Part part, string current, IDictionary<string, Workflow> workflows)
 {
@@ -94,3 +130,4 @@ record Part(ImmutableDictionary<char, int> Attributes);
 
 record Rule(Condition? Condition, string Destination);
 record Condition(char Attribute, char Operator, int Value);
+//record ProcessedNode(string Node, string Conditions);
