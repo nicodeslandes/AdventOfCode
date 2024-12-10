@@ -16,7 +16,10 @@ int Part1()
 
 int Part2()
 {
-    return 0;
+    var input = ReadInput();
+    var frequencies = input[1].GroupBy(x => x).ToDictionary(g => g.Key, g => g.Count());
+
+    return input[0].Sum(i => i * (frequencies.TryGetValue(i, out var f) ? f : 0));
 }
 
 int[][] ReadInput()
