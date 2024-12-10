@@ -5,11 +5,27 @@ namespace Common;
 
 public static class EnumerableExt
 {
-    public static IEnumerable<(int index, T value)> Enumerate<T>(this IEnumerable<T> coll)
-        => coll.Select((val, i) => (i, val));
-
     public static T Multiply<T>(this IEnumerable<T> src) where T : INumber<T>
         => src.Aggregate(T.MultiplicativeIdentity, (current, x) => current * x);
+
+    public static IEnumerable<(T current, T next)> GroupWithNext<T>(this IEnumerable<T> src)
+    {
+        T current = default!;
+        bool first = true;
+        foreach (var x in src)
+        {
+            if (first)
+            {
+                first = false;
+            }
+            else
+            {
+                yield return (current, x);
+            }
+
+            current = x;
+        }
+    }
 
     public static void AddRange<T>(this ISet<T> set, IEnumerable<T> items)
     {
