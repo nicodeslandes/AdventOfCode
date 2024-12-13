@@ -21,8 +21,28 @@ int Part1()
 
 int Part2()
 {
+    var enabled = true;
     var input = ReadInput();
-    return 0;
+    return input
+        .SelectMany(l => PuzzleRegex.Part2.Matches(l))
+        .Select(m =>
+        {
+            if (m.Groups[3].Success)
+            {
+                enabled = m.Groups[3].Value == "do";
+                return 0;
+            }
+
+            if (!enabled)
+            {
+                return 0;
+            }
+
+            int x = int.Parse(m.Groups[1].ValueSpan);
+            int y = int.Parse(m.Groups[2].ValueSpan);
+            return x * y;
+        })
+        .Sum();
 }
 
 IEnumerable<string> ReadInput()
@@ -34,4 +54,7 @@ static partial class PuzzleRegex
 {
     [GeneratedRegex(@"mul\((\d{1,3}),(\d{1,3})\)")]
     public static partial Regex Part1 { get; }
+
+    [GeneratedRegex(@"mul\((\d{1,3}),(\d{1,3})\)|(do(?!n)|don't)")]
+    public static partial Regex Part2 { get; }
 }
