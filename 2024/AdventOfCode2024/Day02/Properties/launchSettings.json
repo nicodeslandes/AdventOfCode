@@ -7,6 +7,10 @@
     "Run": {
       "commandName": "Project",
       "commandLineArgs": "input.txt"
+    },
+    "Test2": {
+      "commandName": "Project",
+      "commandLineArgs": "test2.txt"
     }
   }
 }

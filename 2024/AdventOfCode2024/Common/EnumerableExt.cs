@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Common;
 
@@ -7,6 +8,25 @@ public static class EnumerableExt
 {
     public static T Multiply<T>(this IEnumerable<T> src) where T : INumber<T>
         => src.Aggregate(T.MultiplicativeIdentity, (current, x) => current * x);
+
+    public static IEnumerable<T> Diff<T>(this IEnumerable<T> src) where T : INumber<T>
+    {
+        T? prev = default;
+        bool first = true;
+        foreach (var item in src)
+        {
+            if (first)
+            {
+                first = false;
+            }
+            else
+            {
+                yield return item - prev!;
+            }
+
+            prev = item;
+        }
+    }
 
     public static IEnumerable<(T current, T next)> GroupWithNext<T>(this IEnumerable<T> src)
     {
