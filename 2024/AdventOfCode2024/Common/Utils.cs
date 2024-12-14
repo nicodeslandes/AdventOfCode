@@ -97,16 +97,8 @@ public static class Utils
     }
 }
 
-public record Position
+public record struct Position(int X, int Y)
 {
-    public Position(int x, int y)
-    {
-        X = x;
-        Y = y;
-    }
-    public int X { get; set; }
-    public int Y { get; set; }
-
     public static Position operator +(Position pos, (int dx, int dy) move) => new(pos.X + move.dx, pos.Y + move.dy);
 
     public override string ToString() => $"({X},{Y})";
