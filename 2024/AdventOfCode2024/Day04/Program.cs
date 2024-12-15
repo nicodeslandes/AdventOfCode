@@ -93,8 +93,28 @@ int Part1()
 
 int Part2()
 {
-    var input = ReadInput();
-    return 0;
+    var (grid, rows, cols) = ReadInput();
+    var count = 0;
+    for (var x = 0; x < cols; x++)
+    {
+        for (var y = 0;  y < rows; y++)
+        {
+            if (IsMatch(new Position(x, y)))
+            {
+                count++;
+            }
+        }
+    }
+    return count;
+
+    bool IsMatch(Position pos)
+    {
+        if (pos.X <= 0 || pos.X >= cols - 1) return false;
+        if (pos.Y <= 0 || pos.Y >= rows - 1) return false;
+        if (grid[pos] != 'A') return false;
+        return (grid[pos + (-1, -1)], grid[pos + (1, 1)]) is ('M', 'S') or ('S', 'M')
+            && (grid[pos + (-1, 1)], grid[pos + (1, -1)]) is ('M', 'S') or ('S', 'M');
+    }
 }
 
 (Dictionary<Position, char> grid, int rows, int cols) ReadInput()
