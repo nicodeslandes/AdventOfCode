@@ -1,23 +1,28 @@
 ﻿Console.WriteLine("Part1: {0}", Part1());
 Console.WriteLine("Part2: {0}", Part2());
 
-Position Rotate(Position dir) => dir switch
-{
-    (1, 0) => new(0, 1),
-    (0, 1) => new(-1, 0),
-    (-1, 0) => new(0, -1),
-    (0, -1) => new(1, 0),
-    var x => throw new ArgumentOutOfRangeException(nameof(x)),
-};
 
-int Part1()
+int GetPath(char[][] inputGrid, Cursor cursor, Position? obstacle = null)
 {
-    var (grid, cursor) = ReadInput();
+    HashSet<Cursor> seen = [];
+
+    var grid = inputGrid.Select(r => r.ToArray()).ToArray();
     var gx = grid[0].Length;
     var gy = grid.Length;
-    while(true)
+
+    if (obstacle is var (ox, oy))
+    {
+        grid[oy][ox] = '#';
+    }
+
+    while (true)
     {
         var wentOut = false;
+        if (!seen.Add(cursor))
+        {
+            return -1; // cycle detected
+        }
+
         grid[cursor.Pos.Y][cursor.Pos.X] = 'X';
         for (int i = 0; i < 4; i++)
         {
@@ -36,7 +41,7 @@ int Part1()
             }
             else
             {
-                cursor = cursor with { Dir = Rotate(cursor.Dir) };
+                cursor = cursor with { Dir = cursor.Dir.RotateLeft() };
             }
         }
 
@@ -46,10 +51,24 @@ int Part1()
     return grid.SelectMany(r => r).Count(x => x == 'X');
 }
 
+int Part1()
+{
+    var (grid, cursor) = ReadInput();
+    return GetPath(grid, cursor);
+}
+
 int Part2()
 {
     var (grid, cursor) = ReadInput();
-    return 0;
+    var gx = grid[0].Length;
+    var gy = grid.Length;
+
+    bool IsLoop(int x, int y) => GetPath(grid, cursor, new(x, y)) == -1;
+
+    return Enumerable.Range(0, gx)
+        .SelectMany(x => Enumerable.Range(0, gy).Select(y => (x, y)))
+        .Where(t => grid[t.y][t.x] == '.' && IsLoop(t.x, t.y))
+        .Count();
 }
 
 (char[][] grid, Cursor cursor) ReadInput()
