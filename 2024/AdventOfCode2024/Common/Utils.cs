@@ -1,14 +1,15 @@
 ﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Common;
 
 public static class Utils
 {
-    public static void RunAndMeasureTime<T>(string label, Func<T> func)
+    public static void Run<T>(Func<T> part, [CallerArgumentExpression(nameof(part))] string name = null!)
     {
         var sw = Stopwatch.StartNew();
-        var result = func();
-        Console.WriteLine("{0}: {1} ({2:N0} ms)", label, result, sw.ElapsedMilliseconds);
+        var result = part();
+        Console.WriteLine("{0}: {1} ({2:N0} ms)", name, result, sw.ElapsedMilliseconds);
     }
 
     public static StreamReader OpenInputFileAsStream(string[] args)
