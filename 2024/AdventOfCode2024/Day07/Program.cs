@@ -9,11 +9,11 @@ long Part1()
         .Sum(x => x.result);
 }
 
-bool IsSolvable(long result, long[] operands)
+bool IsSolvable(long result, long[] operands, int maxOperator = 1)
 {
-    IEnumerable<char[]> Operators()
+    IEnumerable<int[]> Operators()
     {
-        var operators = new char[operands.Length - 1];
+        var operators = new int[operands.Length - 1];
         Array.Fill(operators, '+');
 
         for (int i = 0; i < 1 << operators.Length; i++)
@@ -23,26 +23,27 @@ bool IsSolvable(long result, long[] operands)
             for (int index = 0; index < operators.Length; index++)
             {
                 var current = operators[index];
-                if (current == '+' && carry == 1 || current == '+' && carry == 0)
+                if (current < maxOperator && carry == 1 || carry == 0)
                 {
-                    operators[index] = '*';
-                    carry = 0;
+                    if (carry == 1)
+                        operators[index]++;
                     break;
                 }
-                else if (current == '*' && carry == 1)
+                else
                 {
-                    operators[index] = '+';
+                    // current == maxOperator && carry == 1
+                    operators[index] = 0;
                 }
             }
         }
     }
 
-    long Compute(long[] operands, char[] operators)
+    long Compute(long[] operands, int[] operators)
     {
         var result = operands[0];
         for (int i = 1; i < operands.Length; i++)
         {
-            result = operators[i - 1] == '+' ? result + operands[i] : result * operands[i];
+            result = operators[i - 1] == 0 ? result + operands[i] : result * operands[i];
         }
 
         return result;
