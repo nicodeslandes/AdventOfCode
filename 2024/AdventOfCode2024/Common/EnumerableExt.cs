@@ -54,7 +54,7 @@ public static class EnumerableExt
     }
 
     public static string StringJoin<T>(this IEnumerable<T> src, string? separator = null)
-        => string.Join(separator ?? ",", src);
+        => string.Join(separator ?? ", ", src);
 
     public static IEnumerable<U> SelectNonNull<T, U>(this IEnumerable<T> src, Func<T, U?> selector)
     {
@@ -75,14 +75,33 @@ public static class EnumerableExt
         return src.Where(x => x != null).Select(x => x!.Value);
     }
 
-    public static IEnumerable<(T x, T y)> GetAllPairs<T>(this T[] values)
+    public static IEnumerable<(T x, T y)> GetAllPairs<T>(this IList<T> values, PairingFlags pairingFlags)
     {
-        for (int i = 0; i < values.Length; i++)
+        var ordered = pairingFlags.HasFlag(PairingFlags.Ordered);
+        var unordered = pairingFlags.HasFlag(PairingFlags.Unordered);
+        var distinctItems = pairingFlags.HasFlag(PairingFlags.DistinctItems);
+
+        if (pairingFlags.HasFlag(PairingFlags.Unordered) && pairingFlags.HasFlag(PairingFlags.Ordered))
         {
-            for (int j = i + 1; j < values.Length; j++)
+            throw new ArgumentException("Invalid flag; cannot have Ordered and Unordered at the same time!");
+        }
+
+
+        for (int i = 0; i < values.Count; i++)
+        {
+            for (int j = ordered ? 0 : i; j < values.Count; j++)
             {
+                if (distinctItems && i == j) continue;
                 yield return (values[i], values[j]);
             }
         }
     }
+}
+
+[Flags]
+public enum PairingFlags
+{
+    Unordered = 1,
+    Ordered = 2,
+    DistinctItems = 4,
 }

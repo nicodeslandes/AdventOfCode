@@ -101,6 +101,7 @@ public static class Utils
 public record struct Position(int X, int Y)
 {
     public static Position operator +(Position pos, (int dx, int dy) move) => new(pos.X + move.dx, pos.Y + move.dy);
+    public static Position operator -(Position pos, (int dx, int dy) move) => pos + (-move.dx, -move.dy);
     public static (int dx, int dy) operator -(Position pos1, Position pos2) => (pos1.X - pos2.X, pos1.Y - pos2.Y);
 
     public Position RotateLeft() => new(-Y, X);

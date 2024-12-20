@@ -8,7 +8,7 @@ int Part1()
         .Select(a => (ch: a.Key, positions: a.Select(x => x.Pos).ToArray()));
 
     var antiNodes = from a in antennas
-                    from pair in a.positions.GetAllPairs()
+                    from pair in a.positions.GetAllPairs(PairingFlags.Unordered | PairingFlags.DistinctItems)
                     from antiNode in GetAntiNodes(grid, pair.x, pair.y)
                     select antiNode; 
 
@@ -19,7 +19,15 @@ int Part1()
 int Part2()
 {
     var grid = ReadInput();
-    return 0;
+    var antennas = grid.Antennas.Values.GroupBy(a => a.Char)
+        .Select(a => (ch: a.Key, positions: a.Select(x => x.Pos).ToArray()));
+
+    var antiNodes = from a in antennas
+                    from pair in a.positions.GetAllPairs(PairingFlags.Unordered | PairingFlags.DistinctItems)
+                    from n in GetAlignedNodes(grid, pair.x, pair.y)
+                    select n;
+
+    return antiNodes.Distinct().Count();
 }
 
 IEnumerable<Position> GetAntiNodes(Grid grid, Position x, Position y)
@@ -29,6 +37,24 @@ IEnumerable<Position> GetAntiNodes(Grid grid, Position x, Position y)
 
     var node2 = x + (x - y);
     if (grid.IsWithinBounds(node2)) yield return node2;
+}
+
+IEnumerable<Position> GetAlignedNodes(Grid grid, Position x, Position y)
+{
+    var pos = x;
+    var move = y - x;
+
+    while (grid.IsWithinBounds(pos))
+    {
+        pos -= move;
+    }
+
+    pos += move;
+    while(grid.IsWithinBounds(pos))
+    {
+        yield return pos;
+        pos += move;
+    }
 }
 
 Grid ReadInput()
