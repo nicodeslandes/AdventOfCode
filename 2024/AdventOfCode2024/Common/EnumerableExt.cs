@@ -74,4 +74,15 @@ public static class EnumerableExt
     {
         return src.Where(x => x != null).Select(x => x!.Value);
     }
+
+    public static IEnumerable<(T x, T y)> GetAllPairs<T>(this T[] values)
+    {
+        for (int i = 0; i < values.Length; i++)
+        {
+            for (int j = i + 1; j < values.Length; j++)
+            {
+                yield return (values[i], values[j]);
+            }
+        }
+    }
 }
